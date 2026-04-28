@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "357552537842",
+    "project_id": "fishertech-6cbbe",
+    "storage_bucket": "fishertech-6cbbe.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:357552537842:android:49ac5fb83368a9f75b906b",
+        "android_client_info": {
+          "package_name": "com.example.fishertech"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDj8ZqW793Z9f47xn4FrfZ6R4XvNVG-J9c"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
