@@ -35,12 +35,14 @@ dependencies {
     // Core Firebase Libraries
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-database")
+    implementation("com.google.firebase:firebase-storage")
 
     // Standard UI Libraries
     implementation(libs.appcompat)
     implementation(libs.material)
     implementation(libs.activity)
     implementation(libs.constraintlayout)
+    implementation(libs.glide)
 
     // Testing
     testImplementation(libs.junit)

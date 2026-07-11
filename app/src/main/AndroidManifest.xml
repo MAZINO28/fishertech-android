@@ -16,6 +16,36 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Fishertech">
         <activity
+            android:name=".AdminEditProfileActivity"
+            android:exported="false" />
+        <activity
+            android:name=".AdminChangePasswordActivity"
+            android:exported="false" />
+        <activity
+            android:name=".UserManagementActivity"
+            android:exported="false" />
+        <activity
+            android:name=".AdminSettingsActivity"
+            android:exported="false" />
+        <activity
+            android:name=".AdminProfileActivity"
+            android:exported="false" />
+        <activity
+            android:name=".AdminChatActivity"
+            android:exported="false" />
+        <activity
+            android:name=".AdminLocationActivity"
+            android:exported="false" />
+        <activity
+            android:name=".AdminAlertsActivity"
+            android:exported="false" />
+        <activity
+            android:name=".AdminReportsActivity"
+            android:exported="false" />
+        <activity
+            android:name=".DashboardAdminActivity"
+            android:exported="false" />
+        <activity
             android:name=".AdminActivity"
             android:exported="false" />
         <activity

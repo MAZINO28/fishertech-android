@@ -4,6 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#E9EBEE"
+    android:fitsSystemWindows="true"
     android:orientation="vertical">
 
     <androidx.appcompat.widget.Toolbar
@@ -12,19 +13,22 @@
         android:layout_height="60dp"
         android:background="#FFFFFF"
         android:elevation="4dp">
-        <include layout="@layout/custom_toolbar"/>
+
+        <include layout="@layout/custom_toolbar" />
     </androidx.appcompat.widget.Toolbar>
 
     <androidx.core.widget.NestedScrollView
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1">
+        android:layout_weight="1"
+        android:fillViewport="true">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:padding="12dp">
+            android:padding="12dp"
+            android:paddingBottom="90dp">
 
             <androidx.cardview.widget.CardView
                 android:layout_width="match_parent"
@@ -50,10 +54,10 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:background="@android:color/transparent"
+                        android:gravity="top"
                         android:hint="Ano ang balita sa dagat?"
                         android:minLines="3"
-                        android:textSize="18sp"
-                        android:gravity="top" />
+                        android:textSize="18sp" />
 
                     <View
                         android:layout_width="match_parent"
@@ -75,11 +79,11 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Kamakailang mga Ulat"
-                android:textStyle="bold"
                 android:layout_marginTop="20dp"
                 android:layout_marginBottom="10dp"
-                android:textColor="#666666"/>
+                android:text="Kamakailang mga Ulat"
+                android:textColor="#666666"
+                android:textStyle="bold" />
 
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/rvReportFeed"
@@ -95,5 +99,9 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:background="#FFFFFF"
+        app:itemIconTint="@color/nav_item_color"
+        app:itemTextColor="@color/nav_item_color"
+        app:labelVisibilityMode="labeled"
         app:menu="@menu/bottom_menu" />
+
 </LinearLayout>

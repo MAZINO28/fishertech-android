@@ -4,4 +4,5 @@
     <color name="white">#FFFFFFFF</color>
     <color name="nav_selected">#1E4D6B</color>
     <color name="nav_unselected">#888888</color>
+    <color name="my_light_primary">#2196F3</color> <!-- Palitan mo ito ng hex code ng asul mo -->
 </resources>

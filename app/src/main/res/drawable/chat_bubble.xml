@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- SHADOW LAYER (Kulay Gray) -->
+    <item>
+        <shape>
+            <solid android:color="#D1D1D1" /> <!-- Shadow color -->
+            <corners android:radius="14dp" />
+        </shape>
+    </item>
+
+    <!-- MAIN BUBBLE LAYER (Puting Background) -->
+    <!-- I-offset natin ng kaunti para lumitaw yung shadow sa ilalim -->
+    <item android:bottom="2dp" android:right="1dp">
+        <shape>
+            <solid android:color="#FFFFFF" /> <!-- White background -->
+            <stroke android:width="1dp" android:color="#E0E0E0" /> <!-- Light border para mas visible -->
+            <corners android:radius="12dp" />
+        </shape>
+    </item>
+</layer-list>

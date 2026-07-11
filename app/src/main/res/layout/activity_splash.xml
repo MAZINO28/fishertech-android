@@ -6,13 +6,11 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <!-- space sa taas -->
     <View
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"/>
 
-    <!-- logo center -->
     <ImageView
         android:id="@+id/logo"
         android:layout_width="350dp"
@@ -20,13 +18,11 @@
         android:src="@drawable/logo"
         android:layout_gravity="center"/>
 
-    <!-- logo -->
     <View
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"/>
 
-    <!-- text  -->
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"

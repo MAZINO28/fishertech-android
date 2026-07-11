@@ -4,56 +4,122 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.widget.TextView;
 import android.widget.Toast;
+
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.app.AppCompatDelegate;
 import androidx.appcompat.widget.Toolbar;
+
 import com.google.android.material.switchmaterial.SwitchMaterial;
 
 public class SettingsActivity extends AppCompatActivity {
 
     Toolbar toolbar;
-    SwitchMaterial switchWeather, switchSMS;
-    TextView btnChangePassword, btnLanguage;
+
+    SwitchMaterial switchWeather;
+
+    TextView btnChangePassword;
+    TextView btnHelp;
+    TextView btnPrivacy;
+    TextView btnAbout;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+
+        AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO);
+
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_settings);
 
+        // TOOLBAR
         toolbar = findViewById(R.id.toolbar);
+
         setSupportActionBar(toolbar);
+
         if (getSupportActionBar() != null) {
+
             getSupportActionBar().setDisplayShowTitleEnabled(false);
-            getSupportActionBar().setDisplayHomeAsUpEnabled(true); // Back arrow sa taas
+
+            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
         }
 
+        // INITIALIZE VIEWS
         switchWeather = findViewById(R.id.switchWeather);
-        switchSMS = findViewById(R.id.switchSMS);
+
         btnChangePassword = findViewById(R.id.btnChangePassword);
-        btnLanguage = findViewById(R.id.btnLanguage);
 
+        btnHelp = findViewById(R.id.btnHelp);
+
+        btnPrivacy = findViewById(R.id.btnPrivacy);
+
+        btnAbout = findViewById(R.id.btnAbout);
+
+        // WEATHER ALERT SWITCH
         switchWeather.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            String status = isChecked ? "Naka-ON" : "Naka-OFF";
-            Toast.makeText(this, "Weather Alerts: " + status, Toast.LENGTH_SHORT).show();
+
+            String status;
+
+            if (isChecked) {
+                status = "ON";
+            } else {
+                status = "OFF";
+            }
+
+            Toast.makeText(
+                    this,
+                    "Weather Alerts: " + status,
+                    Toast.LENGTH_SHORT
+            ).show();
         });
 
-        switchSMS.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            String status = isChecked ? "Naka-ON" : "Naka-OFF";
-            Toast.makeText(this, "SMS Alerts: " + status, Toast.LENGTH_SHORT).show();
-        });
-
+        // CHANGE PASSWORD
         btnChangePassword.setOnClickListener(v -> {
-            Intent intent = new Intent(SettingsActivity.this, ChangePasswordActivity.class);
+
+            Intent intent =
+                    new Intent(
+                            SettingsActivity.this,
+                            ChangePasswordActivity.class
+                    );
+
             startActivity(intent);
         });
 
-        btnLanguage.setOnClickListener(v -> {
-            Toast.makeText(this, "Pumili ng Wika (Tagalog/English)", Toast.LENGTH_SHORT).show();
+        // HELP
+        btnHelp.setOnClickListener(v -> {
+
+            Toast.makeText(
+                    this,
+                    "Contact FisherTech Support",
+                    Toast.LENGTH_SHORT
+            ).show();
+        });
+
+        // PRIVACY POLICY
+        btnPrivacy.setOnClickListener(v -> {
+
+            Toast.makeText(
+                    this,
+                    "FisherTech protects user information and sensor data.",
+                    Toast.LENGTH_LONG
+            ).show();
+        });
+
+        // ABOUT
+        btnAbout.setOnClickListener(v -> {
+
+            Toast.makeText(
+                    this,
+                    "FisherTech v1.0.0\nDeveloped for fishermen safety and monitoring.",
+                    Toast.LENGTH_LONG
+            ).show();
         });
     }
 
+    // BACK BUTTON
     @Override
     public boolean onSupportNavigateUp() {
+
         onBackPressed();
+
         return true;
     }
 }

@@ -1,8 +1,17 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
     <!-- Base application theme. -->
     <style name="Base.Theme.Fishertech" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- Customize your light theme here. -->
-        <!-- <item name="colorPrimary">@color/my_light_primary</item> -->
+        <!-- I-lock ang kulay gamit ang hardcoded values sa colors.xml -->
+        <item name="colorPrimary">@color/my_light_primary</item>
+        <item name="colorOnPrimary">@color/white</item>
+        <item name="colorPrimaryContainer">@color/my_light_primary</item>
+        <item name="colorOnPrimaryContainer">@color/white</item>
+
+        <!-- Background ng buong app -->
+        <item name="android:windowBackground">@color/white</item>
+
+        <!-- Para sa status bar sa itaas -->
+        <item name="android:statusBarColor">@color/my_light_primary</item>
     </style>
 
     <style name="Theme.Fishertech" parent="Base.Theme.Fishertech" />

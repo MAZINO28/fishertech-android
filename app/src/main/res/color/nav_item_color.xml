@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Kulay kapag pinindot (Selected) -->
+    <item android:color="#1E4D6B" android:state_checked="true" />
+    <!-- Kulay kapag hindi nakapili (Default/Gray) -->
+    <item android:color="#757575" android:state_checked="false" />
+</selector>
