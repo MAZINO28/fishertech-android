@@ -37,16 +37,10 @@
             android:name=".AdminLocationActivity"
             android:exported="false" />
         <activity
-            android:name=".AdminAlertsActivity"
-            android:exported="false" />
-        <activity
             android:name=".AdminReportsActivity"
             android:exported="false" />
         <activity
             android:name=".DashboardAdminActivity"
-            android:exported="false" />
-        <activity
-            android:name=".AdminActivity"
             android:exported="false" />
         <activity
             android:name=".BuoyViewActivity"
