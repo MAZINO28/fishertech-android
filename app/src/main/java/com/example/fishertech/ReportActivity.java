@@ -2,11 +2,11 @@ package com.example.fishertech;
 
 import android.content.Intent;
 import android.os.Bundle;
-import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
-import android.widget.Spinner;
+import android.widget.RadioButton;
+import android.widget.RadioGroup;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -31,8 +31,8 @@ import java.util.Map;
 
 public class ReportActivity extends AppCompatActivity {
 
-    private Spinner spinnerCategory;
-    private EditText etDescription;
+    private RadioGroup radioGroupCategory;
+    private EditText etDescription, etAdditionalRemarks;
     private Button btnSubmitReport;
     private RecyclerView rvReportFeed;
     private BottomNavigationView bottomNav;
@@ -41,32 +41,25 @@ public class ReportActivity extends AppCompatActivity {
     private List<ReportPost> postList = new ArrayList<>();
     private ReportAdapter reportAdapter;
 
-
     private DatabaseReference dbRef;
     private FirebaseAuth mAuth;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-
-        AppCompatDelegate.setDefaultNightMode(
-                AppCompatDelegate.MODE_NIGHT_NO
-        );
-
+        AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO);
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_report);
-
 
         mAuth = FirebaseAuth.getInstance();
         dbRef = FirebaseDatabase.getInstance().getReference();
 
-
-        spinnerCategory = findViewById(R.id.spinnerCategory);
+        radioGroupCategory = findViewById(R.id.radioGroupCategory);
         etDescription = findViewById(R.id.etDescription);
+        etAdditionalRemarks = findViewById(R.id.etAdditionalRemarks);
         btnSubmitReport = findViewById(R.id.btnSubmitReport);
         rvReportFeed = findViewById(R.id.rvReportFeed);
         bottomNav = findViewById(R.id.bottomNav);
         notification = findViewById(R.id.notification);
-
 
         if (notification != null) {
             notification.setOnClickListener(v -> {
@@ -75,20 +68,12 @@ public class ReportActivity extends AppCompatActivity {
             });
         }
 
-
-        String[] categories = {"Babala sa Panahon", "Saklolo sa Dagat", "Nawalang Gamit", "Iba pa"};
-        spinnerCategory.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, categories));
-
-
         rvReportFeed.setLayoutManager(new LinearLayoutManager(this));
         reportAdapter = new ReportAdapter(postList);
         rvReportFeed.setAdapter(reportAdapter);
 
-
         loadReportsFromFirebase();
-
         btnSubmitReport.setOnClickListener(v -> submitReportToFirebase());
-
         setupNavigation();
     }
 
@@ -100,15 +85,15 @@ public class ReportActivity extends AppCompatActivity {
                 for (DataSnapshot data : snapshot.getChildren()) {
                     String category = data.child("type").getValue(String.class);
                     String desc = data.child("description").getValue(String.class);
+                    String remarks = data.child("additional_remarks").getValue(String.class);
                     String uid = data.child("uid").getValue(String.class);
 
                     if (uid != null) {
-                        // FIX: Idinagdag ang .child("FisherTech") para makuha ang pangalan ng user
                         dbRef.child("FisherTech").child("Users").child(uid).child("name").addListenerForSingleValueEvent(new ValueEventListener() {
                             @Override
                             public void onDataChange(@NonNull DataSnapshot userSnapshot) {
                                 String name = userSnapshot.exists() ? userSnapshot.getValue(String.class) : "Mangingisda";
-                                postList.add(0, new ReportPost(name, category, desc));
+                                postList.add(0, new ReportPost(name, category, desc, remarks));
                                 reportAdapter.notifyDataSetChanged();
                             }
                             @Override
@@ -127,20 +112,30 @@ public class ReportActivity extends AppCompatActivity {
 
     private void submitReportToFirebase() {
         String desc = etDescription.getText().toString().trim();
-        String cat = spinnerCategory.getSelectedItem().toString();
-        FirebaseUser user = mAuth.getCurrentUser();
+        String remarks = etAdditionalRemarks.getText().toString().trim();
+        int selectedId = radioGroupCategory.getCheckedRadioButtonId();
+
+        if (selectedId == -1) {
+            Toast.makeText(this, "Pumili muna ng kategorya", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        RadioButton selectedRadioButton = findViewById(selectedId);
+        String cat = selectedRadioButton.getText().toString();
 
         if (desc.isEmpty()) {
             Toast.makeText(this, "Punan ang description", Toast.LENGTH_SHORT).show();
             return;
         }
 
+        FirebaseUser user = mAuth.getCurrentUser();
         if (user != null) {
             String reportId = dbRef.child("reports").push().getKey();
             Map<String, Object> reportData = new HashMap<>();
             reportData.put("uid", user.getUid());
             reportData.put("type", cat);
             reportData.put("description", desc);
+            reportData.put("additional_remarks", remarks);
             reportData.put("status", "received");
             reportData.put("created_at", System.currentTimeMillis());
 
@@ -148,6 +143,8 @@ public class ReportActivity extends AppCompatActivity {
                 dbRef.child("reports").child(reportId).setValue(reportData).addOnCompleteListener(task -> {
                     if (task.isSuccessful()) {
                         etDescription.setText("");
+                        etAdditionalRemarks.setText("");
+                        radioGroupCategory.clearCheck();
                         Toast.makeText(this, "Ulat naipadala na!", Toast.LENGTH_SHORT).show();
                     }
                 });
@@ -157,13 +154,9 @@ public class ReportActivity extends AppCompatActivity {
 
     private void setupNavigation() {
         if (bottomNav != null) {
-
             bottomNav.setSelectedItemId(R.id.nav_report);
-
             bottomNav.setOnItemSelectedListener(item -> {
                 int id = item.getItemId();
-
-                // FIX: Siguraduhin na tama ang logic para sa paglipat ng intent
                 if (id == R.id.nav_report) {
                     return true;
                 }
@@ -191,9 +184,12 @@ public class ReportActivity extends AppCompatActivity {
     }
 
     public static class ReportPost {
-        public String name, category, description;
-        public ReportPost(String name, String category, String description) {
-            this.name = name; this.category = category; this.description = description;
+        public String name, category, description, additionalRemarks;
+        public ReportPost(String name, String category, String description, String additionalRemarks) {
+            this.name = name;
+            this.category = category;
+            this.description = description;
+            this.additionalRemarks = additionalRemarks;
         }
     }
 }

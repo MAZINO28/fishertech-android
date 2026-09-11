@@ -42,12 +42,51 @@
                     android:orientation="vertical"
                     android:padding="15dp">
 
-                    <Spinner
-                        android:id="@+id/spinnerCategory"
+                    <TextView
                         android:layout_width="wrap_content"
-                        android:layout_height="35dp"
-                        android:layout_marginBottom="10dp"
-                        android:background="@android:drawable/btn_dropdown" />
+                        android:layout_height="wrap_content"
+                        android:text="Piliin ang Uri ng Suliranin:"
+                        android:textStyle="bold"
+                        android:textColor="#333333"
+                        android:layout_marginBottom="8dp"/>
+
+                    <RadioGroup
+                        android:id="@+id/radioGroupCategory"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:layout_marginBottom="10dp">
+
+                        <RadioButton
+                            android:id="@+id/rbTechProblem"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Technical Problem (Problema sa Kagamitan)" />
+
+                        <RadioButton
+                            android:id="@+id/rbSystemFailure"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="System Failure (Hindi Gumagana ang Sistema)" />
+
+                        <RadioButton
+                            android:id="@+id/rbNetworkIssue"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Network Issue (Problema sa Signal o Network)" />
+
+                        <RadioButton
+                            android:id="@+id/rbUserError"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="User Error (Kamalian ng Tagagamit)" />
+
+                        <RadioButton
+                            android:id="@+id/rbOther"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Other (Iba pa)" />
+                    </RadioGroup>
 
                     <EditText
                         android:id="@+id/etDescription"
@@ -55,7 +94,7 @@
                         android:layout_height="wrap_content"
                         android:background="@android:color/transparent"
                         android:gravity="top"
-                        android:hint="Ano ang balita sa dagat?"
+                        android:hint="Ano ang ulat o balita?"
                         android:minLines="3"
                         android:textSize="18sp" />
 
