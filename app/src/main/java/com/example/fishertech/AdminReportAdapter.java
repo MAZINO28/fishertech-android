@@ -21,21 +21,26 @@ public class AdminReportAdapter extends RecyclerView.Adapter<AdminReportAdapter.
     @NonNull
     @Override
     public ReportViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-
         View view = LayoutInflater.from(parent.getContext())
                 .inflate(R.layout.item_report_post, parent, false);
-
         return new ReportViewHolder(view);
     }
 
     @Override
     public void onBindViewHolder(@NonNull ReportViewHolder holder, int position) {
-
         AdminReportsActivity.ReportPost post = reportList.get(position);
 
         holder.tvUserName.setText(post.name);
         holder.tvCategory.setText(post.category);
         holder.tvDescription.setText(post.description);
+
+        // Sinusuri kung may karagdagang puna para ipakita
+        if (post.additionalRemarks != null && !post.additionalRemarks.trim().isEmpty()) {
+            holder.tvAdditionalRemarks.setVisibility(View.VISIBLE);
+            holder.tvAdditionalRemarks.setText(post.additionalRemarks);
+        } else {
+            holder.tvAdditionalRemarks.setVisibility(View.GONE);
+        }
     }
 
     @Override
@@ -45,15 +50,15 @@ public class AdminReportAdapter extends RecyclerView.Adapter<AdminReportAdapter.
 
     public static class ReportViewHolder extends RecyclerView.ViewHolder {
 
-        TextView tvUserName, tvCategory, tvDescription;
+        TextView tvUserName, tvCategory, tvDescription, tvAdditionalRemarks; // IDINAGDAG ANG tvAdditionalRemarks
 
         public ReportViewHolder(@NonNull View itemView) {
-
             super(itemView);
 
             tvUserName = itemView.findViewById(R.id.tvUserName);
             tvCategory = itemView.findViewById(R.id.tvCategory);
             tvDescription = itemView.findViewById(R.id.tvDescription);
+            tvAdditionalRemarks = itemView.findViewById(R.id.tvAdditionalRemarks); // IDINAGDAG
         }
     }
 }

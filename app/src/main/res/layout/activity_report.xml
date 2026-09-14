@@ -60,31 +60,31 @@
                             android:id="@+id/rbTechProblem"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="Problema sa Kagamitan (Technical Problem)" />
+                            android:text="Problema sa Kagamitan" />
 
                         <RadioButton
                             android:id="@+id/rbSystemFailure"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="Hindi Gumagana ang Sistema (System Failure)" />
+                            android:text="Hindi Gumagana ang Sistema" />
 
                         <RadioButton
                             android:id="@+id/rbNetworkIssue"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="Problema sa Signal o Network (Network Issue)" />
+                            android:text="Problema sa Signal o Network" />
 
                         <RadioButton
                             android:id="@+id/rbUserError"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="Kamalian ng Tagagamit (User Error)" />
+                            android:text="Kamalian ng Tagagamit" />
 
                         <RadioButton
                             android:id="@+id/rbOther"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="Iba pa (Other)" />
+                            android:text="Iba pa" />
                     </RadioGroup>
 
                     <EditText
@@ -96,7 +96,7 @@
                         android:hint="Ano ang balita sa dagat o sistema?"
                         android:minLines="3"
                         android:textSize="18sp"
-                        android:layout_marginBottom="10dp"/>
+                        android:layout_marginBottom="12dp"/>
 
                     <EditText
                         android:id="@+id/etAdditionalRemarks"
@@ -106,7 +106,8 @@
                         android:gravity="top"
                         android:hint="Karagdagang Puna o Detalye (Opsyonal)"
                         android:minLines="2"
-                        android:textSize="14sp" />
+                        android:textSize="14sp"
+                        android:layout_marginTop="8dp" />
 
                     <View
                         android:layout_width="match_parent"

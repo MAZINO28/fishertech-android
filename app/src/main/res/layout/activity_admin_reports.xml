@@ -13,8 +13,7 @@
         android:layout_height="60dp"
         android:background="#FFFFFF"
         android:elevation="4dp">
-
-        <include layout="@layout/admin_custom_toolbar" />
+        <include layout="@layout/custom_toolbar" />
     </androidx.appcompat.widget.Toolbar>
 
     <androidx.core.widget.NestedScrollView
@@ -61,31 +60,31 @@
                             android:id="@+id/rbTechProblem"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="Technical Problem (Problema sa Kagamitan)" />
+                            android:text="Problema sa Kagamitan" />
 
                         <RadioButton
                             android:id="@+id/rbSystemFailure"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="System Failure (Hindi Gumagana ang Sistema)" />
+                            android:text="Hindi Gumagana ang Sistema" />
 
                         <RadioButton
                             android:id="@+id/rbNetworkIssue"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="Network Issue (Problema sa Signal o Network)" />
+                            android:text="Problema sa Signal o Network" />
 
                         <RadioButton
                             android:id="@+id/rbUserError"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="User Error (Kamalian ng Tagagamit)" />
+                            android:text="Kamalian ng Tagagamit" />
 
                         <RadioButton
                             android:id="@+id/rbOther"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="Other (Iba pa)" />
+                            android:text="Iba pa" />
                     </RadioGroup>
 
                     <EditText
@@ -94,9 +93,21 @@
                         android:layout_height="wrap_content"
                         android:background="@android:color/transparent"
                         android:gravity="top"
-                        android:hint="Ano ang ulat o balita?"
+                        android:hint="Ano ang balita sa dagat o sistema?"
                         android:minLines="3"
-                        android:textSize="18sp" />
+                        android:textSize="18sp"
+                        android:layout_marginBottom="12dp"/>
+
+                    <EditText
+                        android:id="@+id/etAdditionalRemarks"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:background="@android:color/transparent"
+                        android:gravity="top"
+                        android:hint="Karagdagang Puna o Detalye (Opsyonal)"
+                        android:minLines="2"
+                        android:textSize="14sp"
+                        android:layout_marginTop="8dp" />
 
                     <View
                         android:layout_width="match_parent"
@@ -138,9 +149,9 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:background="#FFFFFF"
-        app:itemIconTint="@color/nav_item_color"
-        app:itemTextColor="@color/nav_item_color"
+        app:menu="@menu/admin_menu"
         app:labelVisibilityMode="labeled"
-        app:menu="@menu/admin_menu" />
+        app:itemIconTint="@color/nav_item_color"
+        app:itemTextColor="@color/nav_item_color"/>
 
 </LinearLayout>
