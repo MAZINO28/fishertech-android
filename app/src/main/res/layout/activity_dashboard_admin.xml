@@ -57,6 +57,7 @@
                             android:textStyle="bold" />
 
                         <TextView
+                            android:id="@+id/tvDate"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="Thursday, 14 May"
@@ -83,10 +84,10 @@
                                 android:layout_height="100dp"
                                 android:layout_alignParentEnd="true"
                                 android:layout_centerVertical="true"
-                                android:src="@drawable/sunny"
-                                 />
+                                android:src="@drawable/sunny" />
                         </RelativeLayout>
 
+                        <!-- DINAGDAG/Tiniyak na narito ang tvCondition -->
                         <TextView
                             android:id="@+id/tvCondition"
                             android:layout_width="wrap_content"
@@ -357,7 +358,6 @@
                         </LinearLayout>
                     </androidx.cardview.widget.CardView>
 
-
                     <androidx.cardview.widget.CardView
                         android:id="@+id/cardBuoyPhoto"
                         android:layout_width="0dp"
@@ -395,7 +395,6 @@
                         </LinearLayout>
                     </androidx.cardview.widget.CardView>
                 </GridLayout>
-
 
                 <TextView
                     android:layout_width="wrap_content"

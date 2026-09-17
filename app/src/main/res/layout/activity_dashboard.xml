@@ -7,7 +7,6 @@
     android:fitsSystemWindows="true"
     android:background="#F8F9FA">
 
-
     <androidx.appcompat.widget.Toolbar
         android:id="@+id/toolbar"
         android:layout_width="match_parent"
@@ -16,7 +15,6 @@
         android:elevation="2dp">
         <include layout="@layout/custom_toolbar" />
     </androidx.appcompat.widget.Toolbar>
-
 
     <ScrollView
         android:layout_width="match_parent"
@@ -31,7 +29,6 @@
             android:orientation="vertical"
             android:padding="16dp"
             android:paddingBottom="80dp">
-
 
             <androidx.cardview.widget.CardView
                 android:layout_width="match_parent"
@@ -53,6 +50,7 @@
                         android:textSize="18sp"
                         android:textStyle="bold" />
                     <TextView
+                        android:id="@+id/tvDate"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="Thursday, 14 May"
@@ -76,9 +74,10 @@
                             android:layout_height="100dp"
                             android:layout_alignParentEnd="true"
                             android:layout_centerVertical="true"
-                            android:src="@drawable/sunny"
-                             />
+                            android:src="@drawable/sunny" />
                     </RelativeLayout>
+
+                    <!-- DINAGDAG/Tiniyak na narito ang tvCondition -->
                     <TextView
                         android:id="@+id/tvCondition"
                         android:layout_width="wrap_content"
@@ -228,7 +227,6 @@
             </GridLayout>
         </LinearLayout>
     </ScrollView>
-
 
     <com.google.android.material.bottomnavigation.BottomNavigationView
         android:id="@+id/bottomNav"

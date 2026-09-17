@@ -44,6 +44,9 @@ dependencies {
     implementation(libs.constraintlayout)
     implementation(libs.glide)
 
+    // Weather
+    implementation("com.android.volley:volley:1.2.1")
+
     // Testing
     testImplementation(libs.junit)
     androidTestImplementation(libs.ext.junit)
