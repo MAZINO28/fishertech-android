@@ -3,6 +3,7 @@ package com.example.fishertech;
 import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.View;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -35,13 +36,14 @@ import java.util.Locale;
 public class DashboardAdminActivity extends AppCompatActivity {
 
     private TextView tvMainTemp, tvWaterQuality, tvWaveHeight, tvWaterTemp, tvCondition, tvDate;
-    private ImageView ivWeatherIcon; // Idinagdag para sa dynamic weather icon
+    private TextView tvReportUserName, tvReportCategory, tvAnnouncementMessage, tvReportAdditional, tvAnnouncementTime;
+    private ImageView ivWeatherIcon;
     private TextView tvUserCount, tvReportCount, tvBuoyCount;
     private LinearLayout layoutActivityLog;
 
     private ImageView ivNotification;
     private BottomNavigationView bottomNav;
-    private CardView cardBuoyPhoto, cardUsers, cardActiveBuoys, cardReports;
+    private CardView cardBuoyPhoto, cardUsers, cardActiveBuoys, cardReports, cardRecentAnnouncement;
 
     private DatabaseReference mDatabaseSensors;
     private DatabaseReference mRefUsers;
@@ -69,6 +71,7 @@ public class DashboardAdminActivity extends AppCompatActivity {
 
         fetchRealtimeData();
         fetchLiveWeather();
+        fetchLatestAnnouncement(); // Kunin ang pinakabagong ulat
         setupNotification();
         setupCardClicks();
         setupNavigation();
@@ -81,10 +84,17 @@ public class DashboardAdminActivity extends AppCompatActivity {
         tvWaterTemp = findViewById(R.id.tvWaterTemp);
         tvCondition = findViewById(R.id.tvCondition);
         tvDate = findViewById(R.id.tvDate);
-        ivWeatherIcon = findViewById(R.id.ivWeatherIcon); // Naka-link na ang weather icon ID
+        ivWeatherIcon = findViewById(R.id.ivWeatherIcon);
         tvUserCount = findViewById(R.id.tvUserCount);
         tvReportCount = findViewById(R.id.tvReportCount);
         tvBuoyCount = findViewById(R.id.tvBuoyCount);
+
+        // Recent Report Card Views
+        tvReportUserName = findViewById(R.id.tvReportUserName);
+        tvReportCategory = findViewById(R.id.tvReportCategory);
+        tvAnnouncementMessage = findViewById(R.id.tvAnnouncementMessage);
+        tvReportAdditional = findViewById(R.id.tvReportAdditional);
+        tvAnnouncementTime = findViewById(R.id.tvAnnouncementTime);
 
         layoutActivityLog = findViewById(R.id.layoutActivityLog);
         bottomNav = findViewById(R.id.bottomNav);
@@ -92,6 +102,7 @@ public class DashboardAdminActivity extends AppCompatActivity {
         cardUsers = findViewById(R.id.cardUsers);
         cardActiveBuoys = findViewById(R.id.cardActiveBuoys);
         cardReports = findViewById(R.id.cardReports);
+        cardRecentAnnouncement = findViewById(R.id.cardRecentAnnouncement);
 
         Toolbar toolbar = findViewById(R.id.toolbar);
         if (toolbar != null) {
@@ -106,8 +117,83 @@ public class DashboardAdminActivity extends AppCompatActivity {
         }
     }
 
+    private void fetchLatestAnnouncement() {
+        mRefReports.orderByChild("created_at").limitToLast(1).addValueEventListener(new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                if (snapshot.exists()) {
+                    for (DataSnapshot snap : snapshot.getChildren()) {
+                        String uid = snap.child("uid").getValue(String.class);
+
+                        String category = snap.child("type").getValue(String.class);
+                        if (category == null) category = snap.child("category").getValue(String.class);
+
+                        String description = snap.child("description").getValue(String.class);
+
+                        String additionalRemarks = snap.child("additional_remarks").getValue(String.class);
+                        if (additionalRemarks == null) additionalRemarks = snap.child("additional").getValue(String.class);
+
+                        Long createdAt = snap.child("created_at").getValue(Long.class);
+
+                        if (tvReportCategory != null) {
+                            tvReportCategory.setText(category != null ? category : "Ulat sa Dagat");
+                        }
+                        if (tvAnnouncementMessage != null) {
+                            tvAnnouncementMessage.setText(description != null ? description : "Walang detalye.");
+                        }
+
+                        if (tvReportAdditional != null) {
+                            if (additionalRemarks != null && !additionalRemarks.isEmpty()) {
+                                tvReportAdditional.setText(additionalRemarks);
+                                tvReportAdditional.setVisibility(View.VISIBLE);
+                            } else {
+                                tvReportAdditional.setVisibility(View.GONE);
+                            }
+                        }
+
+                        if (tvAnnouncementTime != null && createdAt != null) {
+                            SimpleDateFormat sdf = new SimpleDateFormat("h:mm a", Locale.getDefault());
+                            tvAnnouncementTime.setText(sdf.format(new Date(createdAt)));
+                        } else if (tvAnnouncementTime != null) {
+                            tvAnnouncementTime.setText("Kamakailan lang");
+                        }
+
+                        if (uid != null) {
+                            DatabaseReference userRef = FirebaseDatabase.getInstance().getReference().child("FisherTech").child("Users").child(uid).child("name");
+                            userRef.addListenerForSingleValueEvent(new ValueEventListener() {
+                                @Override
+                                public void onDataChange(@NonNull DataSnapshot userSnap) {
+                                    String name = userSnap.exists() ? userSnap.getValue(String.class) : "Mangingisda";
+                                    if (tvReportUserName != null) {
+                                        tvReportUserName.setText(name);
+                                    }
+                                }
+
+                                @Override
+                                public void onCancelled(@NonNull DatabaseError error) {
+                                    if (tvReportUserName != null) tvReportUserName.setText("Mangingisda");
+                                }
+                            });
+                        } else {
+                            if (tvReportUserName != null) tvReportUserName.setText("Mangingisda");
+                        }
+                    }
+                } else {
+                    if (tvReportUserName != null) tvReportUserName.setText("Walang Ulat");
+                    if (tvReportCategory != null) tvReportCategory.setText("");
+                    if (tvAnnouncementMessage != null) tvAnnouncementMessage.setText("Wala pang nai-post na ulat.");
+                    if (tvReportAdditional != null) tvReportAdditional.setVisibility(View.GONE);
+                    if (tvAnnouncementTime != null) tvAnnouncementTime.setText("");
+                }
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) {}
+        });
+    }
+
     private void fetchLiveWeather() {
-        String url = "https://api.openweathermap.org/data/2.5/weather?lat=" + LAT + "&lon=" + LON + "&appid=" + API_KEY + "&units=metric&lang=fil";
+        String url = "https://api.openweathermap.org/data/2.5/weather?lat=" + LAT + "&lon=" + LON + "&appid=" + API_KEY + "&units=metric&lang=en";
 
         JsonObjectRequest jsonObjectRequest = new JsonObjectRequest(Request.Method.GET, url, null,
                 response -> {
@@ -120,12 +206,24 @@ public class DashboardAdminActivity extends AppCompatActivity {
                         String weatherDesc = response.getJSONArray("weather")
                                 .getJSONObject(0).getString("description");
 
-                        // Kunin ang icon code para sa dynamic icon updating
                         String iconCode = response.getJSONArray("weather")
                                 .getJSONObject(0).getString("icon");
                         setWeatherIcon(iconCode);
 
-                        if (!weatherDesc.isEmpty()) {
+                        String lowerDesc = weatherDesc.toLowerCase();
+                        if (lowerDesc.contains("light rain")) {
+                            weatherDesc = "Mahinang ulan";
+                        } else if (lowerDesc.contains("moderate rain")) {
+                            weatherDesc = "Katamtamang ulan";
+                        } else if (lowerDesc.contains("heavy intensity rain") || lowerDesc.contains("heavy rain")) {
+                            weatherDesc = "Malakas na ulan";
+                        } else if (lowerDesc.contains("clear sky")) {
+                            weatherDesc = "Maliwanag";
+                        } else if (lowerDesc.contains("few clouds") || lowerDesc.contains("scattered clouds") || lowerDesc.contains("broken clouds") || lowerDesc.contains("overcast clouds")) {
+                            weatherDesc = "Maulap";
+                        } else if (lowerDesc.contains("thunderstorm")) {
+                            weatherDesc = "Bagyo / Pagkidlat";
+                        } else {
                             weatherDesc = weatherDesc.substring(0, 1).toUpperCase() + weatherDesc.substring(1);
                         }
 
@@ -151,13 +249,10 @@ public class DashboardAdminActivity extends AppCompatActivity {
         if (ivWeatherIcon == null) return;
 
         switch (iconCode) {
-            // Sunny / Clear
             case "01d":
             case "01n":
                 ivWeatherIcon.setImageResource(R.drawable.sunny);
                 break;
-
-            // Cloudy / Few clouds / Scattered clouds
             case "02d":
             case "02n":
             case "03d":
@@ -166,32 +261,26 @@ public class DashboardAdminActivity extends AppCompatActivity {
             case "04n":
                 ivWeatherIcon.setImageResource(R.drawable.cloudy);
                 break;
-
-            // Rainy / Shower rain
             case "09d":
             case "09n":
             case "10d":
             case "10n":
                 ivWeatherIcon.setImageResource(R.drawable.rainy);
                 break;
-
-            // Thunderstorm (Bagyo)
             case "11d":
             case "11n":
-                ivWeatherIcon.setImageResource(R.drawable.thunderstorm); // Siguraduhing mayroon kang ganitong icon
+                ivWeatherIcon.setImageResource(R.drawable.thunderstorm);
                 break;
-
-            // Mist / Fog / Haze
             case "50d":
             case "50n":
-                ivWeatherIcon.setImageResource(R.drawable.foggy); // O kaya ay sunny/cloudy kung wala pa
+                ivWeatherIcon.setImageResource(R.drawable.foggy);
                 break;
-
             default:
                 ivWeatherIcon.setImageResource(R.drawable.sunny);
                 break;
         }
     }
+
     private void fetchRealtimeData() {
         mDatabaseSensors.addValueEventListener(new ValueEventListener() {
             @Override
@@ -223,8 +312,8 @@ public class DashboardAdminActivity extends AppCompatActivity {
                 if (tvReportCount != null) {
                     long count = snapshot.getChildrenCount();
                     tvReportCount.setText(String.valueOf(count));
-                    updateActivityLog(count);
                 }
+                updateActivityLog();
             }
             @Override public void onCancelled(@NonNull DatabaseError error) {}
         });
@@ -238,22 +327,37 @@ public class DashboardAdminActivity extends AppCompatActivity {
         });
     }
 
-    private void updateActivityLog(long reports) {
+    private void updateActivityLog() {
         if (layoutActivityLog != null) {
-            layoutActivityLog.removeAllViews();
-            TextView logEntry = new TextView(this);
+            mRefReports.orderByChild("created_at").limitToLast(1).addListenerForSingleValueEvent(new ValueEventListener() {
+                @Override
+                public void onDataChange(@NonNull DataSnapshot snapshot) {
+                    layoutActivityLog.removeAllViews();
+                    TextView logEntry = new TextView(DashboardAdminActivity.this);
 
-            if (reports > 0) {
-                logEntry.setText("Kasalukuyan: May " + reports + " aktibong ulat na nakatala sa system.");
-                logEntry.setTextColor(ContextCompat.getColor(this, android.R.color.black));
-            } else {
-                logEntry.setText("Walang natanggap na bagong ulat mula sa dagat.");
-                logEntry.setTextColor(ContextCompat.getColor(this, android.R.color.darker_gray));
-            }
+                    if (snapshot.exists()) {
+                        for (DataSnapshot snap : snapshot.getChildren()) {
+                            Long createdAt = snap.child("created_at").getValue(Long.class);
+                            String timeString = "Kamakailan lang";
+                            if (createdAt != null) {
+                                SimpleDateFormat sdf = new SimpleDateFormat("MMM d, yyyy • h:mm a", Locale.getDefault());
+                                timeString = sdf.format(new Date(createdAt));
+                            }
+                            logEntry.setText("Pinakahuling Aktibidad: May natanggap na ulat noong " + timeString + ".");
+                        }
+                    } else {
+                        logEntry.setText("Walang natanggap na bagong ulat o aktibidad sa kasalukuyan.");
+                    }
 
-            logEntry.setPadding(20, 20, 20, 20);
-            logEntry.setTextSize(13);
-            layoutActivityLog.addView(logEntry);
+                    logEntry.setTextColor(ContextCompat.getColor(DashboardAdminActivity.this, android.R.color.black));
+                    logEntry.setPadding(20, 20, 20, 20);
+                    logEntry.setTextSize(13);
+                    layoutActivityLog.addView(logEntry);
+                }
+
+                @Override
+                public void onCancelled(@NonNull DatabaseError error) {}
+            });
         }
     }
 

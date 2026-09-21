@@ -87,7 +87,6 @@
                                 android:src="@drawable/sunny" />
                         </RelativeLayout>
 
-                        <!-- DINAGDAG/Tiniyak na narito ang tvCondition -->
                         <TextView
                             android:id="@+id/tvCondition"
                             android:layout_width="wrap_content"
@@ -396,11 +395,93 @@
                     </androidx.cardview.widget.CardView>
                 </GridLayout>
 
+                <!-- PINAKABAGONG ULAT CARD (Admin Dashboard) -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Pinakabagong Ulat"
+                    android:textStyle="bold"
+                    android:textColor="#333333"
+                    android:layout_marginBottom="12dp"
+                    android:layout_marginStart="4dp"/>
+
+                <androidx.cardview.widget.CardView
+                    android:id="@+id/cardRecentAnnouncement"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="2dp"
+                    app:cardBackgroundColor="@android:color/white"
+                    android:layout_marginHorizontal="4dp"
+                    android:layout_marginBottom="20dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="16dp">
+
+                        <RelativeLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginBottom="4dp">
+
+                            <TextView
+                                android:id="@+id/tvReportUserName"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Pangalan ng User"
+                                android:textSize="16sp"
+                                android:textStyle="bold"
+                                android:textColor="#1F4E79"/>
+
+                            <TextView
+                                android:id="@+id/tvAnnouncementTime"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="6:11 PM"
+                                android:textSize="12sp"
+                                android:textColor="#888888"
+                                android:layout_alignParentEnd="true"
+                                android:layout_centerVertical="true"/>
+                        </RelativeLayout>
+
+                        <TextView
+                            android:id="@+id/tvReportCategory"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Uri ng Suliranin"
+                            android:textSize="14sp"
+                            android:textColor="#666666"
+                            android:layout_marginBottom="8dp"/>
+
+                        <TextView
+                            android:id="@+id/tvAnnouncementMessage"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Mensahe o ulat..."
+                            android:textSize="16sp"
+                            android:textColor="#333333"
+                            android:textStyle="bold"
+                            android:layout_marginBottom="4dp"/>
+
+                        <TextView
+                            android:id="@+id/tvReportAdditional"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Karagdagang puna..."
+                            android:textSize="13sp"
+                            android:textStyle="italic"
+                            android:textColor="#777777"
+                            android:visibility="gone"/>
+
+                    </LinearLayout>
+                </androidx.cardview.widget.CardView>
+
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="4dp"
-                    android:layout_marginTop="10dp"
                     android:layout_marginBottom="12dp"
                     android:text="Recent Activity Log"
                     android:textColor="#333333"
@@ -410,7 +491,8 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     app:cardCornerRadius="16dp"
-                    app:cardElevation="1dp">
+                    app:cardElevation="1dp"
+                    android:layout_marginBottom="16dp">
 
                     <LinearLayout
                         android:id="@+id/layoutActivityLog"

@@ -3,7 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginBottom="10dp"
+    android:layout_marginBottom="8dp"
     app:cardCornerRadius="8dp"
     app:cardElevation="2dp">
 
@@ -11,7 +11,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="15dp">
+        android:padding="12dp">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -23,7 +23,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="Mangingisda User"
+                android:text="Pangalan ng User"
                 android:textStyle="bold"
                 android:textColor="#1E4D6B" />
 
@@ -36,40 +36,30 @@
         </LinearLayout>
 
         <TextView
-            android:id="@+id/tvCategory"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:textSize="12sp"
-            android:textColor="#888888" />
-
-        <TextView
-            android:id="@+id/tvDescription"
+            android:id="@+id/tvMessage"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
+            android:layout_marginTop="6dp"
             android:textColor="#333333"
             android:textSize="15sp" />
 
-        <TextView
-            android:id="@+id/tvAdditionalRemarks"
+        <!-- Delete Button para sa Admin -->
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:textColor="#555555"
-            android:textSize="13sp"
-            android:textStyle="italic" />
+            android:orientation="horizontal"
+            android:gravity="end"
+            android:layout_marginTop="8dp">
 
-        <!-- Button para i-save ang ulat bilang text file -->
-        <Button
-            android:id="@+id/btnSaveFile"
-            android:layout_width="wrap_content"
-            android:layout_height="36dp"
-            android:layout_gravity="end"
-            android:layout_marginTop="10dp"
-            android:backgroundTint="#1E4D6B"
-            android:text="I-save ang File"
-            android:textColor="#FFFFFF"
-            android:textSize="11sp" />
+            <Button
+                android:id="@+id/btnDeleteMessage"
+                android:layout_width="wrap_content"
+                android:layout_height="32dp"
+                android:backgroundTint="#B71C1C"
+                android:text="Burahin"
+                android:textColor="#FFFFFF"
+                android:textSize="10sp" />
+        </LinearLayout>
 
     </LinearLayout>
 </androidx.cardview.widget.CardView>

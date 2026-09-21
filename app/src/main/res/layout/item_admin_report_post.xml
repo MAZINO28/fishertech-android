@@ -23,7 +23,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="Mangingisda User"
+                android:text="Admin User"
                 android:textStyle="bold"
                 android:textColor="#1E4D6B" />
 
@@ -59,17 +59,33 @@
             android:textSize="13sp"
             android:textStyle="italic" />
 
-        <!-- Button para i-save ang ulat bilang text file -->
-        <Button
-            android:id="@+id/btnSaveFile"
-            android:layout_width="wrap_content"
-            android:layout_height="36dp"
-            android:layout_gravity="end"
-            android:layout_marginTop="10dp"
-            android:backgroundTint="#1E4D6B"
-            android:text="I-save ang File"
-            android:textColor="#FFFFFF"
-            android:textSize="11sp" />
+        <!-- Mga Button para sa Admin (Burahin at I-save) -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="end"
+            android:layout_marginTop="10dp">
+
+            <Button
+                android:id="@+id/btnDeleteReport"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:layout_marginEnd="8dp"
+                android:backgroundTint="#B71C1C"
+                android:text="Burahin"
+                android:textColor="#FFFFFF"
+                android:textSize="11sp" />
+
+            <Button
+                android:id="@+id/btnSaveFile"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:backgroundTint="#1E4D6B"
+                android:text="I-save ang File"
+                android:textColor="#FFFFFF"
+                android:textSize="11sp" />
+        </LinearLayout>
 
     </LinearLayout>
 </androidx.cardview.widget.CardView>

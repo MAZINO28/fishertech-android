@@ -1,7 +1,12 @@
 package com.example.fishertech;
 
+import android.content.ContentValues;
 import android.content.Intent;
+import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
+import android.provider.MediaStore;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
@@ -24,9 +29,14 @@ import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.ValueEventListener;
 
+import java.io.OutputStream;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 public class AdminReportsActivity extends AppCompatActivity {
@@ -68,12 +78,83 @@ public class AdminReportsActivity extends AppCompatActivity {
         }
 
         rvReportFeed.setLayoutManager(new LinearLayoutManager(this));
-        reportAdapter = new AdminReportAdapter(postList);
+
+        // In-update ang adapter para tanggapin ang parehong save at delete actions
+        reportAdapter = new AdminReportAdapter(postList, new AdminReportAdapter.OnActionClickListener() {
+            @Override
+            public void onSaveClick(ReportPost post) {
+                saveReportAsTxtFile(post);
+            }
+
+            @Override
+            public void onDeleteClick(String reportId) {
+                deleteReportFromFirebase(reportId);
+            }
+        });
         rvReportFeed.setAdapter(reportAdapter);
 
         loadReportsFromFirebase();
         btnSubmitReport.setOnClickListener(v -> submitReportToFirebase());
         setupNavigation();
+    }
+
+    private void saveReportAsTxtFile(ReportPost post) {
+        String fileName = "FisherTech_AdminReport_" + System.currentTimeMillis() + ".txt";
+        String fileContent = "=== FISHERTECH ADMIN REPORT ===\n" +
+                "Nag-ulat / Admin: " + post.name + "\n" +
+                "Kategorya: " + post.category + "\n" +
+                "Oras/Petsa: " + post.timestamp + "\n\n" +
+                "Deskripsyon:\n" + post.description + "\n\n" +
+                "Karagdagang Puna:\n" + (post.additionalRemarks != null && !post.additionalRemarks.isEmpty() ? post.additionalRemarks : "Wala") + "\n" +
+                "===============================";
+
+        boolean isSaved = false;
+
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                ContentValues values = new ContentValues();
+                values.put(MediaStore.Downloads.DISPLAY_NAME, fileName);
+                values.put(MediaStore.Downloads.MIME_TYPE, "text/plain");
+                values.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS);
+
+                Uri uri = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+                if (uri != null) {
+                    try (OutputStream outputStream = getContentResolver().openOutputStream(uri)) {
+                        if (outputStream != null) {
+                            outputStream.write(fileContent.getBytes());
+                            isSaved = true;
+                        }
+                    }
+                }
+            } else {
+                java.io.File downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+                if (!downloadsDir.exists()) {
+                    downloadsDir.mkdirs();
+                }
+                java.io.File file = new java.io.File(downloadsDir, fileName);
+                try (java.io.FileOutputStream fos = new java.io.FileOutputStream(file)) {
+                    fos.write(fileContent.getBytes());
+                    isSaved = true;
+                }
+            }
+
+            if (isSaved) {
+                Toast.makeText(this, "Tagumpay na nai-save ang ulat sa Downloads folder!", Toast.LENGTH_LONG).show();
+            } else {
+                Toast.makeText(this, "Hindi nai-save ang ulat.", Toast.LENGTH_SHORT).show();
+            }
+
+        } catch (Exception e) {
+            Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void deleteReportFromFirebase(String reportId) {
+        if (reportId != null) {
+            dbRef.child("reports").child(reportId).removeValue()
+                    .addOnSuccessListener(aVoid -> Toast.makeText(this, "Tagumpay na na-delete ang ulat.", Toast.LENGTH_SHORT).show())
+                    .addOnFailureListener(e -> Toast.makeText(this, "Nabigo sa pag-delete: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+        }
     }
 
     private void loadReportsFromFirebase() {
@@ -82,10 +163,41 @@ public class AdminReportsActivity extends AppCompatActivity {
             public void onDataChange(@NonNull DataSnapshot snapshot) {
                 postList.clear();
                 for (DataSnapshot data : snapshot.getChildren()) {
+                    String reportId = data.getKey(); // Kinukuha ang natatanging ID ng ulat
                     String category = data.child("type").getValue(String.class);
                     String desc = data.child("description").getValue(String.class);
                     String remarks = data.child("additional_remarks").getValue(String.class);
                     String uid = data.child("uid").getValue(String.class);
+                    Long createdAt = data.child("created_at").getValue(Long.class);
+
+                    String timeString = "Kamakailan lang";
+                    if (createdAt != null) {
+                        long currentTime = System.currentTimeMillis();
+                        long timeDifference = currentTime - createdAt;
+                        long oneDayMillis = 24 * 60 * 60 * 1000;
+
+                        Calendar postDate = Calendar.getInstance();
+                        postDate.setTimeInMillis(createdAt);
+
+                        Calendar currentDate = Calendar.getInstance();
+                        currentDate.setTimeInMillis(currentTime);
+
+                        boolean isSameDay = postDate.get(Calendar.YEAR) == currentDate.get(Calendar.YEAR) &&
+                                postDate.get(Calendar.DAY_OF_YEAR) == currentDate.get(Calendar.DAY_OF_YEAR);
+
+                        if (isSameDay) {
+                            SimpleDateFormat timeFormat = new SimpleDateFormat("h:mm a", Locale.getDefault());
+                            timeString = timeFormat.format(new Date(createdAt));
+                        } else if (timeDifference < (7 * oneDayMillis)) {
+                            SimpleDateFormat dayFormat = new SimpleDateFormat("EEE, h:mm a", Locale.getDefault());
+                            timeString = dayFormat.format(new Date(createdAt));
+                        } else {
+                            SimpleDateFormat fullFormat = new SimpleDateFormat("MMM d, h:mm a", Locale.getDefault());
+                            timeString = fullFormat.format(new Date(createdAt));
+                        }
+                    }
+
+                    final String finalTime = timeString;
 
                     if (uid != null) {
                         dbRef.child("FisherTech")
@@ -96,7 +208,7 @@ public class AdminReportsActivity extends AppCompatActivity {
                                     @Override
                                     public void onDataChange(@NonNull DataSnapshot userSnapshot) {
                                         String name = userSnapshot.exists() ? userSnapshot.getValue(String.class) : "ADMIN";
-                                        postList.add(0, new ReportPost(name, category, desc, remarks));
+                                        postList.add(0, new ReportPost(reportId, name, category, desc, remarks, finalTime));
                                         reportAdapter.notifyDataSetChanged();
                                     }
 
@@ -190,16 +302,24 @@ public class AdminReportsActivity extends AppCompatActivity {
     }
 
     public static class ReportPost {
+        public String reportId;
         public String name;
         public String category;
         public String description;
         public String additionalRemarks;
+        public String timestamp;
 
-        public ReportPost(String name, String category, String description, String additionalRemarks) {
+        public ReportPost(String reportId, String name, String category, String description, String additionalRemarks, String timestamp) {
+            this.reportId = reportId;
             this.name = name;
             this.category = category;
             this.description = description;
             this.additionalRemarks = additionalRemarks;
+            this.timestamp = timestamp;
+        }
+
+        public String getReportId() {
+            return reportId;
         }
     }
 }
