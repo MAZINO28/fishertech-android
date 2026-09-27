@@ -32,6 +32,10 @@ dependencies {
     // Firebase BoM
     implementation(platform("com.google.firebase:firebase-bom:33.1.0"))
 
+    implementation("com.google.android.gms:play-services-maps:18.2.0")
+
+    implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
+
     // Core Firebase Libraries
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-database")

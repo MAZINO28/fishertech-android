@@ -19,6 +19,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.app.AppCompatDelegate;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout; // ✅ SwipeRefreshLayout Import
 
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.firebase.auth.FirebaseAuth;
@@ -47,6 +48,7 @@ public class ReportActivity extends AppCompatActivity {
     private RecyclerView rvReportFeed;
     private BottomNavigationView bottomNav;
     private ImageView notification;
+    private SwipeRefreshLayout swipeRefreshLayout; // ✅ SwipeRefreshLayout Variable
 
     private List<ReportPost> postList = new ArrayList<>();
     private ReportAdapter reportAdapter;
@@ -70,6 +72,7 @@ public class ReportActivity extends AppCompatActivity {
         rvReportFeed = findViewById(R.id.rvReportFeed);
         bottomNav = findViewById(R.id.bottomNav);
         notification = findViewById(R.id.notification);
+        swipeRefreshLayout = findViewById(R.id.swipeRefreshLayout); // ✅ Initialization
 
         if (notification != null) {
             notification.setOnClickListener(v -> {
@@ -80,9 +83,13 @@ public class ReportActivity extends AppCompatActivity {
 
         rvReportFeed.setLayoutManager(new LinearLayoutManager(this));
 
-        // Ipinasa ang callback para sa save button
         reportAdapter = new ReportAdapter(postList, this::saveReportAsTxtFile);
         rvReportFeed.setAdapter(reportAdapter);
+
+        // ✅ Swipe-to-Refresh Listener
+        if (swipeRefreshLayout != null) {
+            swipeRefreshLayout.setOnRefreshListener(this::loadReportsFromFirebase);
+        }
 
         loadReportsFromFirebase();
         btnSubmitReport.setOnClickListener(v -> submitReportToFirebase());
@@ -103,7 +110,6 @@ public class ReportActivity extends AppCompatActivity {
 
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                // Para sa Android 10 pataas (paggamit ng MediaStore)
                 ContentValues values = new ContentValues();
                 values.put(MediaStore.Downloads.DISPLAY_NAME, fileName);
                 values.put(MediaStore.Downloads.MIME_TYPE, "text/plain");
@@ -119,7 +125,6 @@ public class ReportActivity extends AppCompatActivity {
                     }
                 }
             } else {
-                // Para sa mas lumang bersyon ng Android
                 java.io.File downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
                 if (!downloadsDir.exists()) {
                     downloadsDir.mkdirs();
@@ -143,10 +148,20 @@ public class ReportActivity extends AppCompatActivity {
     }
 
     private void loadReportsFromFirebase() {
-        dbRef.child("reports").addValueEventListener(new ValueEventListener() {
+        dbRef.child("reports").addListenerForSingleValueEvent(new ValueEventListener() {
             @Override
             public void onDataChange(@NonNull DataSnapshot snapshot) {
                 postList.clear();
+
+                if (!snapshot.exists()) {
+                    reportAdapter.notifyDataSetChanged();
+                    if (swipeRefreshLayout != null) swipeRefreshLayout.setRefreshing(false);
+                    return;
+                }
+
+                long totalChildren = snapshot.getChildrenCount();
+                final int[] processedCount = {0};
+
                 for (DataSnapshot data : snapshot.getChildren()) {
                     String category = data.child("type").getValue(String.class);
                     String desc = data.child("description").getValue(String.class);
@@ -189,11 +204,28 @@ public class ReportActivity extends AppCompatActivity {
                             public void onDataChange(@NonNull DataSnapshot userSnapshot) {
                                 String name = userSnapshot.exists() ? userSnapshot.getValue(String.class) : "Mangingisda";
                                 postList.add(0, new ReportPost(name, category, desc, remarks, finalTime));
-                                reportAdapter.notifyDataSetChanged();
+
+                                processedCount[0]++;
+                                if (processedCount[0] == totalChildren) {
+                                    reportAdapter.notifyDataSetChanged();
+                                    if (swipeRefreshLayout != null) swipeRefreshLayout.setRefreshing(false);
+                                }
                             }
                             @Override
-                            public void onCancelled(@NonNull DatabaseError error) {}
+                            public void onCancelled(@NonNull DatabaseError error) {
+                                processedCount[0]++;
+                                if (processedCount[0] == totalChildren) {
+                                    reportAdapter.notifyDataSetChanged();
+                                    if (swipeRefreshLayout != null) swipeRefreshLayout.setRefreshing(false);
+                                }
+                            }
                         });
+                    } else {
+                        processedCount[0]++;
+                        if (processedCount[0] == totalChildren) {
+                            reportAdapter.notifyDataSetChanged();
+                            if (swipeRefreshLayout != null) swipeRefreshLayout.setRefreshing(false);
+                        }
                     }
                 }
             }
@@ -201,6 +233,7 @@ public class ReportActivity extends AppCompatActivity {
             @Override
             public void onCancelled(@NonNull DatabaseError error) {
                 Toast.makeText(ReportActivity.this, "Error: " + error.getMessage(), Toast.LENGTH_SHORT).show();
+                if (swipeRefreshLayout != null) swipeRefreshLayout.setRefreshing(false);
             }
         });
     }
@@ -241,6 +274,7 @@ public class ReportActivity extends AppCompatActivity {
                         etAdditionalRemarks.setText("");
                         radioGroupCategory.clearCheck();
                         Toast.makeText(this, "Ulat naipadala na!", Toast.LENGTH_SHORT).show();
+                        loadReportsFromFirebase(); // I-refresh ang listahan matapos mag-submit
                     }
                 });
             }

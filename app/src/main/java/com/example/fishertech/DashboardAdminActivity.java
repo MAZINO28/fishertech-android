@@ -14,6 +14,7 @@ import androidx.appcompat.app.AppCompatDelegate;
 import androidx.appcompat.widget.Toolbar;
 import androidx.cardview.widget.CardView;
 import androidx.core.content.ContextCompat;
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout; // ✅ SwipeRefreshLayout Import
 
 import com.android.volley.Request;
 import com.android.volley.RequestQueue;
@@ -40,6 +41,7 @@ public class DashboardAdminActivity extends AppCompatActivity {
     private ImageView ivWeatherIcon;
     private TextView tvUserCount, tvReportCount, tvBuoyCount;
     private LinearLayout layoutActivityLog;
+    private SwipeRefreshLayout swipeRefreshLayout; // ✅ SwipeRefreshLayout Variable
 
     private ImageView ivNotification;
     private BottomNavigationView bottomNav;
@@ -50,10 +52,9 @@ public class DashboardAdminActivity extends AppCompatActivity {
     private DatabaseReference mRefReports;
     private DatabaseReference mRefBuoys;
 
-    // OpenWeatherMap API Configuration
     private final String API_KEY = "1cb64f7a9c1182e1511454b51eb047e9";
-    private final String LAT = "14.4506"; // Bacoor Bay, Cavite Latitude
-    private final String LON = "120.9358"; // Bacoor Bay, Cavite Longitude
+    private final String LAT = "14.4506";
+    private final String LON = "120.9358";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -71,7 +72,18 @@ public class DashboardAdminActivity extends AppCompatActivity {
 
         fetchRealtimeData();
         fetchLiveWeather();
-        fetchLatestAnnouncement(); // Kunin ang pinakabagong ulat
+        fetchLatestAnnouncement();
+
+        // ✅ Swipe-to-Refresh Listener
+        if (swipeRefreshLayout != null) {
+            swipeRefreshLayout.setOnRefreshListener(() -> {
+                fetchLiveWeather();
+                fetchLatestAnnouncement();
+                updateActivityLog();
+                swipeRefreshLayout.setRefreshing(false);
+            });
+        }
+
         setupNotification();
         setupCardClicks();
         setupNavigation();
@@ -89,7 +101,6 @@ public class DashboardAdminActivity extends AppCompatActivity {
         tvReportCount = findViewById(R.id.tvReportCount);
         tvBuoyCount = findViewById(R.id.tvBuoyCount);
 
-        // Recent Report Card Views
         tvReportUserName = findViewById(R.id.tvReportUserName);
         tvReportCategory = findViewById(R.id.tvReportCategory);
         tvAnnouncementMessage = findViewById(R.id.tvAnnouncementMessage);
@@ -103,6 +114,7 @@ public class DashboardAdminActivity extends AppCompatActivity {
         cardActiveBuoys = findViewById(R.id.cardActiveBuoys);
         cardReports = findViewById(R.id.cardReports);
         cardRecentAnnouncement = findViewById(R.id.cardRecentAnnouncement);
+        swipeRefreshLayout = findViewById(R.id.swipeRefreshLayout); // ✅ Initialization
 
         Toolbar toolbar = findViewById(R.id.toolbar);
         if (toolbar != null) {
@@ -118,7 +130,7 @@ public class DashboardAdminActivity extends AppCompatActivity {
     }
 
     private void fetchLatestAnnouncement() {
-        mRefReports.orderByChild("created_at").limitToLast(1).addValueEventListener(new ValueEventListener() {
+        mRefReports.orderByChild("created_at").limitToLast(1).addListenerForSingleValueEvent(new ValueEventListener() {
             @Override
             public void onDataChange(@NonNull DataSnapshot snapshot) {
                 if (snapshot.exists()) {

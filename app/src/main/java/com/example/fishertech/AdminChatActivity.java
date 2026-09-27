@@ -18,6 +18,7 @@ import androidx.appcompat.app.AppCompatDelegate;
 import androidx.appcompat.widget.Toolbar;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout; // ✅ Import
 
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
@@ -47,6 +48,7 @@ public class AdminChatActivity extends AppCompatActivity {
     private RecyclerView rvForumPosts;
     private FloatingActionButton fabAddPost;
     private ImageView notification;
+    private SwipeRefreshLayout swipeRefreshLayout; // ✅ Variable
 
     private List<ForumPost> forumList = new ArrayList<>();
     private AdminChatAdapter chatAdapter;
@@ -57,7 +59,7 @@ public class AdminChatActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO);
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_chat);
+        setContentView(R.layout.activity_chat); // O ang iyong admin chat layout name
 
         dbRef = FirebaseDatabase.getInstance().getReference();
 
@@ -66,11 +68,15 @@ public class AdminChatActivity extends AppCompatActivity {
         LinearLayoutManager layoutManager = new LinearLayoutManager(this);
         rvForumPosts.setLayoutManager(layoutManager);
 
-        // Ginagamit na ang AdminChatAdapter na may delete function
         chatAdapter = new AdminChatAdapter(forumList, this::deleteMessageFromFirebase);
         rvForumPosts.setAdapter(chatAdapter);
 
         loadForumPosts();
+
+        // ✅ Swipe-to-Refresh Listener
+        if (swipeRefreshLayout != null) {
+            swipeRefreshLayout.setOnRefreshListener(this::loadForumPosts);
+        }
 
         fabAddPost.setOnClickListener(v -> showPostDialog());
 
@@ -94,17 +100,18 @@ public class AdminChatActivity extends AppCompatActivity {
         fabAddPost = findViewById(R.id.fabAddPost);
         notification = findViewById(R.id.notification);
         bottomNav = findViewById(R.id.bottomNav);
+        swipeRefreshLayout = findViewById(R.id.swipeRefreshLayout); // ✅ Initialization
     }
 
     private void loadForumPosts() {
-        dbRef.child("forum_posts").addValueEventListener(new ValueEventListener() {
+        dbRef.child("forum_posts").addListenerForSingleValueEvent(new ValueEventListener() {
             @Override
             public void onDataChange(@NonNull DataSnapshot snapshot) {
                 forumList.clear();
                 List<ForumPostTemp> tempPostList = new ArrayList<>();
 
                 for (DataSnapshot postSnap : snapshot.getChildren()) {
-                    String postId = postSnap.getKey(); // Kinukuha ang natatanging ID ng post
+                    String postId = postSnap.getKey();
                     String uid = postSnap.child("uid").getValue(String.class);
                     String content = postSnap.child("content").getValue(String.class);
                     Long createdAt = postSnap.child("created_at").getValue(Long.class);
@@ -119,8 +126,12 @@ public class AdminChatActivity extends AppCompatActivity {
 
                 if (tempPostList.isEmpty()) {
                     chatAdapter.notifyDataSetChanged();
+                    if (swipeRefreshLayout != null) swipeRefreshLayout.setRefreshing(false);
                     return;
                 }
+
+                long totalPosts = tempPostList.size();
+                final int[] processedCount = {0};
 
                 for (ForumPostTemp temp : tempPostList) {
                     dbRef.child("FisherTech").child("Users").child(temp.uid).child("name")
@@ -129,7 +140,6 @@ public class AdminChatActivity extends AppCompatActivity {
                                 public void onDataChange(@NonNull DataSnapshot userSnap) {
                                     String username = userSnap.exists() ? userSnap.getValue(String.class) : "Admin";
 
-                                    // Smart Date & Time Formatting
                                     String timeString = "Kamakailan lang";
                                     long currentTime = System.currentTimeMillis();
                                     long timeDifference = currentTime - temp.createdAt;
@@ -157,17 +167,25 @@ public class AdminChatActivity extends AppCompatActivity {
 
                                     forumList.add(new ForumPost(temp.postId, temp.uid, username, temp.content, timeString, temp.createdAt));
 
-                                    Collections.sort(forumList, (p1, p2) -> Long.compare(p1.getCreatedAt(), p2.getCreatedAt()));
+                                    processedCount[0]++;
+                                    if (processedCount[0] == totalPosts) {
+                                        Collections.sort(forumList, (p1, p2) -> Long.compare(p1.getCreatedAt(), p2.getCreatedAt()));
+                                        chatAdapter.notifyDataSetChanged();
 
-                                    chatAdapter.notifyDataSetChanged();
-
-                                    if (!forumList.isEmpty()) {
-                                        rvForumPosts.scrollToPosition(forumList.size() - 1);
+                                        if (!forumList.isEmpty()) {
+                                            rvForumPosts.scrollToPosition(forumList.size() - 1);
+                                        }
+                                        if (swipeRefreshLayout != null) swipeRefreshLayout.setRefreshing(false);
                                     }
                                 }
 
                                 @Override
-                                public void onCancelled(@NonNull DatabaseError error) {}
+                                public void onCancelled(@NonNull DatabaseError error) {
+                                    processedCount[0]++;
+                                    if (processedCount[0] == totalPosts) {
+                                        if (swipeRefreshLayout != null) swipeRefreshLayout.setRefreshing(false);
+                                    }
+                                }
                             });
                 }
             }
@@ -175,6 +193,7 @@ public class AdminChatActivity extends AppCompatActivity {
             @Override
             public void onCancelled(@NonNull DatabaseError error) {
                 Toast.makeText(AdminChatActivity.this, "Failed to load posts.", Toast.LENGTH_SHORT).show();
+                if (swipeRefreshLayout != null) swipeRefreshLayout.setRefreshing(false);
             }
         });
     }
@@ -182,7 +201,10 @@ public class AdminChatActivity extends AppCompatActivity {
     private void deleteMessageFromFirebase(String postId) {
         if (postId != null) {
             dbRef.child("forum_posts").child(postId).removeValue()
-                    .addOnSuccessListener(aVoid -> Toast.makeText(AdminChatActivity.this, "Na-delete na ang mensahe.", Toast.LENGTH_SHORT).show())
+                    .addOnSuccessListener(aVoid -> {
+                        Toast.makeText(AdminChatActivity.this, "Na-delete na ang mensahe.", Toast.LENGTH_SHORT).show();
+                        loadForumPosts();
+                    })
                     .addOnFailureListener(e -> Toast.makeText(AdminChatActivity.this, "Error sa pag-delete: " + e.getMessage(), Toast.LENGTH_SHORT).show());
         }
     }
@@ -209,7 +231,10 @@ public class AdminChatActivity extends AppCompatActivity {
 
                     if (postId != null) {
                         dbRef.child("forum_posts").child(postId).setValue(postValues)
-                                .addOnSuccessListener(aVoid -> Toast.makeText(AdminChatActivity.this, "Nai-post na!", Toast.LENGTH_SHORT).show())
+                                .addOnSuccessListener(aVoid -> {
+                                    Toast.makeText(AdminChatActivity.this, "Nai-post na!", Toast.LENGTH_SHORT).show();
+                                    loadForumPosts();
+                                })
                                 .addOnFailureListener(e -> Toast.makeText(AdminChatActivity.this, "Error sa pag-post.", Toast.LENGTH_SHORT).show());
                     }
                 }
@@ -296,7 +321,6 @@ public class AdminChatActivity extends AppCompatActivity {
         @NonNull
         @Override
         public ChatViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-            // Gumagamit na ng bagong admin layout para sa forum posts
             View view = LayoutInflater.from(parent.getContext())
                     .inflate(R.layout.item_admin_forum_post, parent, false);
             return new ChatViewHolder(view);
@@ -310,7 +334,6 @@ public class AdminChatActivity extends AppCompatActivity {
             holder.tvPostContent.setText(post.getMessage());
             holder.tvTimestamp.setText(post.getTimestamp());
 
-            // Pindutin ang Burahin button para matanggal sa database at screen
             holder.btnDeleteMessage.setOnClickListener(v -> {
                 if (deleteClickListener != null) {
                     deleteClickListener.onDeleteClick(post.getPostId());
@@ -330,7 +353,7 @@ public class AdminChatActivity extends AppCompatActivity {
             ChatViewHolder(View v) {
                 super(v);
                 tvUserName = v.findViewById(R.id.tvUserName);
-                tvPostContent = v.findViewById(R.id.tvMessage); // Siguraduhing tugma sa ID sa item_admin_forum_post.xml
+                tvPostContent = v.findViewById(R.id.tvMessage);
                 tvTimestamp = v.findViewById(R.id.tvTimestamp);
                 btnDeleteMessage = v.findViewById(R.id.btnDeleteMessage);
             }

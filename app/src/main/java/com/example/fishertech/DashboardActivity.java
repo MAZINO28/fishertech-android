@@ -11,6 +11,7 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.app.AppCompatDelegate;
 import androidx.cardview.widget.CardView;
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 
 import com.android.volley.Request;
@@ -38,13 +39,13 @@ public class DashboardActivity extends AppCompatActivity {
     private BottomNavigationView bottomNav;
     private CardView cardBuoyPhoto, cardRecentAnnouncement;
     private LinearLayout btnNotification;
+    private SwipeRefreshLayout swipeRefreshLayout; // ✅ SwipeRefreshLayout declaration
 
     private DatabaseReference mDatabaseSensors, mDatabaseReports;
 
-    // OpenWeatherMap API Configuration
     private final String API_KEY = "1cb64f7a9c1182e1511454b51eb047e9";
-    private final String LAT = "14.4506"; // Bacoor Bay, Cavite Latitude
-    private final String LON = "120.9358"; // Bacoor Bay, Cavite Longitude
+    private final String LAT = "14.4506";
+    private final String LON = "120.9358";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -60,7 +61,16 @@ public class DashboardActivity extends AppCompatActivity {
 
         fetchRealtimeData();
         fetchLiveWeather();
-        fetchLatestAnnouncement(); // Kunin ang pinakabagong ulat
+        fetchLatestAnnouncement();
+
+        // ✅ Swipe-to-Refresh Listener
+        swipeRefreshLayout.setOnRefreshListener(() -> {
+            fetchLiveWeather();
+            fetchLatestAnnouncement();
+            // Para sa sensors, naka-realtime listener na ang addValueEventListener,
+            // pero pwede rin nating ihinto ang spinner saglit o hayaang sumabay sa weather.
+            swipeRefreshLayout.setRefreshing(false);
+        });
 
         if (cardBuoyPhoto != null) {
             cardBuoyPhoto.setOnClickListener(v -> {
@@ -93,7 +103,6 @@ public class DashboardActivity extends AppCompatActivity {
         tvCondition = findViewById(R.id.tvCondition);
         tvDate = findViewById(R.id.tvDate);
 
-        // Recent Report Card Views
         tvReportUserName = findViewById(R.id.tvReportUserName);
         tvReportCategory = findViewById(R.id.tvReportCategory);
         tvAnnouncementMessage = findViewById(R.id.tvAnnouncementMessage);
@@ -105,6 +114,8 @@ public class DashboardActivity extends AppCompatActivity {
         cardRecentAnnouncement = findViewById(R.id.cardRecentAnnouncement);
         bottomNav = findViewById(R.id.bottomNav);
         btnNotification = findViewById(R.id.btnNotificationContainer);
+
+        swipeRefreshLayout = findViewById(R.id.swipeRefreshLayout); // ✅ Initialization
     }
 
     private void setCurrentDate() {
@@ -115,20 +126,17 @@ public class DashboardActivity extends AppCompatActivity {
     }
 
     private void fetchLatestAnnouncement() {
-        mDatabaseReports.orderByChild("created_at").limitToLast(1).addValueEventListener(new ValueEventListener() {
+        mDatabaseReports.orderByChild("created_at").limitToLast(1).addListenerForSingleValueEvent(new ValueEventListener() {
             @Override
             public void onDataChange(@NonNull DataSnapshot snapshot) {
                 if (snapshot.exists()) {
                     for (DataSnapshot snap : snapshot.getChildren()) {
                         String uid = snap.child("uid").getValue(String.class);
 
-                        // Kunin ang 'type' (o 'category' kung sakaling meron)
                         String category = snap.child("type").getValue(String.class);
                         if (category == null) category = snap.child("category").getValue(String.class);
 
                         String description = snap.child("description").getValue(String.class);
-
-                        // Tamang pangalan ng field mula sa Firebase: 'additional_remarks'
                         String additionalRemarks = snap.child("additional_remarks").getValue(String.class);
                         if (additionalRemarks == null) additionalRemarks = snap.child("additional").getValue(String.class);
 
@@ -141,7 +149,6 @@ public class DashboardActivity extends AppCompatActivity {
                             tvAnnouncementMessage.setText(description != null ? description : "Walang detalye.");
                         }
 
-                        // I-display ang karagdagang puna (additional_remarks)
                         if (tvReportAdditional != null) {
                             if (additionalRemarks != null && !additionalRemarks.isEmpty()) {
                                 tvReportAdditional.setText(additionalRemarks);
@@ -151,7 +158,6 @@ public class DashboardActivity extends AppCompatActivity {
                             }
                         }
 
-                        // Oras
                         if (tvAnnouncementTime != null && createdAt != null) {
                             SimpleDateFormat sdf = new SimpleDateFormat("h:mm a", Locale.getDefault());
                             tvAnnouncementTime.setText(sdf.format(new Date(createdAt)));
@@ -159,7 +165,6 @@ public class DashboardActivity extends AppCompatActivity {
                             tvAnnouncementTime.setText("Kamakailan lang");
                         }
 
-                        // Kunin ang pangalan ng user gamit ang UID
                         if (uid != null) {
                             DatabaseReference userRef = FirebaseDatabase.getInstance().getReference().child("FisherTech").child("Users").child(uid).child("name");
                             userRef.addListenerForSingleValueEvent(new ValueEventListener() {
@@ -187,12 +192,20 @@ public class DashboardActivity extends AppCompatActivity {
                     if (tvReportAdditional != null) tvReportAdditional.setVisibility(View.GONE);
                     if (tvAnnouncementTime != null) tvAnnouncementTime.setText("");
                 }
+
+                // ✅ Ihinto ang refresh animation kapag natapos na
+                if (swipeRefreshLayout != null) {
+                    swipeRefreshLayout.setRefreshing(false);
+                }
             }
 
             @Override
             public void onCancelled(@NonNull DatabaseError error) {
                 if (tvAnnouncementMessage != null) {
                     tvAnnouncementMessage.setText("Nabigong i-load ang ulat.");
+                }
+                if (swipeRefreshLayout != null) {
+                    swipeRefreshLayout.setRefreshing(false);
                 }
             }
         });

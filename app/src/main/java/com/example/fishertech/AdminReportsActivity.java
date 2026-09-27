@@ -19,6 +19,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.app.AppCompatDelegate;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout; // ✅ Import
 
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.firebase.auth.FirebaseAuth;
@@ -47,6 +48,7 @@ public class AdminReportsActivity extends AppCompatActivity {
     private RecyclerView rvReportFeed;
     private BottomNavigationView bottomNav;
     private ImageView notification;
+    private SwipeRefreshLayout swipeRefreshLayout; // ✅ Variable
 
     private List<ReportPost> postList = new ArrayList<>();
     private AdminReportAdapter reportAdapter;
@@ -69,6 +71,7 @@ public class AdminReportsActivity extends AppCompatActivity {
         rvReportFeed = findViewById(R.id.rvReportFeed);
         bottomNav = findViewById(R.id.bottomNav);
         notification = findViewById(R.id.notification);
+        swipeRefreshLayout = findViewById(R.id.swipeRefreshLayout); // ✅ Initialization
 
         if (notification != null) {
             notification.setOnClickListener(v -> {
@@ -79,7 +82,6 @@ public class AdminReportsActivity extends AppCompatActivity {
 
         rvReportFeed.setLayoutManager(new LinearLayoutManager(this));
 
-        // In-update ang adapter para tanggapin ang parehong save at delete actions
         reportAdapter = new AdminReportAdapter(postList, new AdminReportAdapter.OnActionClickListener() {
             @Override
             public void onSaveClick(ReportPost post) {
@@ -92,6 +94,11 @@ public class AdminReportsActivity extends AppCompatActivity {
             }
         });
         rvReportFeed.setAdapter(reportAdapter);
+
+        // ✅ Swipe-to-Refresh Listener
+        if (swipeRefreshLayout != null) {
+            swipeRefreshLayout.setOnRefreshListener(this::loadReportsFromFirebase);
+        }
 
         loadReportsFromFirebase();
         btnSubmitReport.setOnClickListener(v -> submitReportToFirebase());
@@ -152,18 +159,31 @@ public class AdminReportsActivity extends AppCompatActivity {
     private void deleteReportFromFirebase(String reportId) {
         if (reportId != null) {
             dbRef.child("reports").child(reportId).removeValue()
-                    .addOnSuccessListener(aVoid -> Toast.makeText(this, "Tagumpay na na-delete ang ulat.", Toast.LENGTH_SHORT).show())
+                    .addOnSuccessListener(aVoid -> {
+                        Toast.makeText(this, "Tagumpay na na-delete ang ulat.", Toast.LENGTH_SHORT).show();
+                        loadReportsFromFirebase();
+                    })
                     .addOnFailureListener(e -> Toast.makeText(this, "Nabigo sa pag-delete: " + e.getMessage(), Toast.LENGTH_SHORT).show());
         }
     }
 
     private void loadReportsFromFirebase() {
-        dbRef.child("reports").addValueEventListener(new ValueEventListener() {
+        dbRef.child("reports").addListenerForSingleValueEvent(new ValueEventListener() {
             @Override
             public void onDataChange(@NonNull DataSnapshot snapshot) {
                 postList.clear();
+
+                if (!snapshot.exists()) {
+                    reportAdapter.notifyDataSetChanged();
+                    if (swipeRefreshLayout != null) swipeRefreshLayout.setRefreshing(false);
+                    return;
+                }
+
+                long totalChildren = snapshot.getChildrenCount();
+                final int[] processedCount = {0};
+
                 for (DataSnapshot data : snapshot.getChildren()) {
-                    String reportId = data.getKey(); // Kinukuha ang natatanging ID ng ulat
+                    String reportId = data.getKey();
                     String category = data.child("type").getValue(String.class);
                     String desc = data.child("description").getValue(String.class);
                     String remarks = data.child("additional_remarks").getValue(String.class);
@@ -209,12 +229,29 @@ public class AdminReportsActivity extends AppCompatActivity {
                                     public void onDataChange(@NonNull DataSnapshot userSnapshot) {
                                         String name = userSnapshot.exists() ? userSnapshot.getValue(String.class) : "ADMIN";
                                         postList.add(0, new ReportPost(reportId, name, category, desc, remarks, finalTime));
-                                        reportAdapter.notifyDataSetChanged();
+
+                                        processedCount[0]++;
+                                        if (processedCount[0] == totalChildren) {
+                                            reportAdapter.notifyDataSetChanged();
+                                            if (swipeRefreshLayout != null) swipeRefreshLayout.setRefreshing(false);
+                                        }
                                     }
 
                                     @Override
-                                    public void onCancelled(@NonNull DatabaseError error) {}
+                                    public void onCancelled(@NonNull DatabaseError error) {
+                                        processedCount[0]++;
+                                        if (processedCount[0] == totalChildren) {
+                                            reportAdapter.notifyDataSetChanged();
+                                            if (swipeRefreshLayout != null) swipeRefreshLayout.setRefreshing(false);
+                                        }
+                                    }
                                 });
+                    } else {
+                        processedCount[0]++;
+                        if (processedCount[0] == totalChildren) {
+                            reportAdapter.notifyDataSetChanged();
+                            if (swipeRefreshLayout != null) swipeRefreshLayout.setRefreshing(false);
+                        }
                     }
                 }
             }
@@ -222,6 +259,7 @@ public class AdminReportsActivity extends AppCompatActivity {
             @Override
             public void onCancelled(@NonNull DatabaseError error) {
                 Toast.makeText(AdminReportsActivity.this, "Error: " + error.getMessage(), Toast.LENGTH_SHORT).show();
+                if (swipeRefreshLayout != null) swipeRefreshLayout.setRefreshing(false);
             }
         });
     }
@@ -264,6 +302,7 @@ public class AdminReportsActivity extends AppCompatActivity {
                         etAdditionalRemarks.setText("");
                         radioGroupCategory.clearCheck();
                         Toast.makeText(this, "Ulat naipadala na!", Toast.LENGTH_SHORT).show();
+                        loadReportsFromFirebase(); // I-refresh ang feed matapos mag-submit
                     }
                 });
             }

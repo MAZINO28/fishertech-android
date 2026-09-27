@@ -20,6 +20,7 @@ import androidx.appcompat.app.AppCompatDelegate;
 import androidx.appcompat.widget.Toolbar;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout; // ✅ SwipeRefreshLayout Import
 
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
@@ -49,11 +50,11 @@ public class ChatActivity extends AppCompatActivity {
     private RecyclerView rvForumPosts;
     private FloatingActionButton fabAddPost;
     private ImageView notification;
+    private SwipeRefreshLayout swipeRefreshLayout; // ✅ SwipeRefreshLayout Variable
 
     private List<ForumPost> forumList = new ArrayList<>();
     private ChatAdapter chatAdapter;
 
-    // Database Reference
     private DatabaseReference dbRef;
 
     @Override
@@ -62,23 +63,25 @@ public class ChatActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_chat);
 
-        // 1. Initialize Firebase Reference
         dbRef = FirebaseDatabase.getInstance().getReference();
 
-        // 2. Initialize Views
         initViews();
 
-        // 3. Setup RecyclerView
         LinearLayoutManager layoutManager = new LinearLayoutManager(this);
         rvForumPosts.setLayoutManager(layoutManager);
 
         chatAdapter = new ChatAdapter(forumList);
         rvForumPosts.setAdapter(chatAdapter);
 
-        // 4. Load existing posts from database
         loadForumPosts();
 
-        // 5. Button Listeners
+        // ✅ Swipe-to-Refresh Listener
+        if (swipeRefreshLayout != null) {
+            swipeRefreshLayout.setOnRefreshListener(() -> {
+                loadForumPosts();
+            });
+        }
+
         fabAddPost.setOnClickListener(v -> showPostDialog());
 
         if (notification != null) {
@@ -87,7 +90,6 @@ public class ChatActivity extends AppCompatActivity {
             });
         }
 
-        // 6. Setup Navigation Bar
         setupNavigation();
     }
 
@@ -102,10 +104,11 @@ public class ChatActivity extends AppCompatActivity {
         fabAddPost = findViewById(R.id.fabAddPost);
         notification = findViewById(R.id.notification);
         bottomNav = findViewById(R.id.bottomNav);
+        swipeRefreshLayout = findViewById(R.id.swipeRefreshLayout); // ✅ Initialization
     }
 
     private void loadForumPosts() {
-        dbRef.child("forum_posts").addValueEventListener(new ValueEventListener() {
+        dbRef.child("forum_posts").addListenerForSingleValueEvent(new ValueEventListener() {
             @Override
             public void onDataChange(@NonNull DataSnapshot snapshot) {
                 List<ForumPostTemp> tempPostList = new ArrayList<>();
@@ -124,10 +127,10 @@ public class ChatActivity extends AppCompatActivity {
                 if (tempPostList.isEmpty()) {
                     forumList.clear();
                     chatAdapter.notifyDataSetChanged();
+                    if (swipeRefreshLayout != null) swipeRefreshLayout.setRefreshing(false);
                     return;
                 }
 
-                // I-sort muna ayon sa timestamp
                 Collections.sort(tempPostList, Comparator.comparingLong(ForumPostTemp::getCreatedAt));
 
                 List<ForumPost> loadedPosts = new ArrayList<>();
@@ -143,7 +146,6 @@ public class ChatActivity extends AppCompatActivity {
 
                                     loadedPosts.add(new ForumPost(temp.uid, username, temp.content, timeString, temp.createdAt));
 
-                                    // Kapag nakolekta na ang lahat, i-update ang UI nang sabay-sabay
                                     if (loadedPosts.size() == totalPosts) {
                                         Collections.sort(loadedPosts, (p1, p2) -> Long.compare(p1.getCreatedAt(), p2.getCreatedAt()));
 
@@ -151,9 +153,13 @@ public class ChatActivity extends AppCompatActivity {
                                         forumList.addAll(loadedPosts);
                                         chatAdapter.notifyDataSetChanged();
 
-                                        // Auto-scroll sa pinakailalim para makita ang pinakabagong chat
                                         if (!forumList.isEmpty()) {
                                             rvForumPosts.scrollToPosition(forumList.size() - 1);
+                                        }
+
+                                        // ✅ Ihinto ang refresh animation pagkatapos ma-load
+                                        if (swipeRefreshLayout != null) {
+                                            swipeRefreshLayout.setRefreshing(false);
                                         }
                                     }
                                 }
@@ -169,6 +175,9 @@ public class ChatActivity extends AppCompatActivity {
                                         if (!forumList.isEmpty()) {
                                             rvForumPosts.scrollToPosition(forumList.size() - 1);
                                         }
+                                        if (swipeRefreshLayout != null) {
+                                            swipeRefreshLayout.setRefreshing(false);
+                                        }
                                     }
                                 }
                             });
@@ -178,6 +187,9 @@ public class ChatActivity extends AppCompatActivity {
             @Override
             public void onCancelled(@NonNull DatabaseError error) {
                 Toast.makeText(ChatActivity.this, "Failed to load posts.", Toast.LENGTH_SHORT).show();
+                if (swipeRefreshLayout != null) {
+                    swipeRefreshLayout.setRefreshing(false);
+                }
             }
         });
     }
@@ -230,7 +242,10 @@ public class ChatActivity extends AppCompatActivity {
 
                     if (postId != null) {
                         dbRef.child("forum_posts").child(postId).setValue(postValues)
-                                .addOnSuccessListener(aVoid -> Toast.makeText(ChatActivity.this, "Nai-post na!", Toast.LENGTH_SHORT).show())
+                                .addOnSuccessListener(aVoid -> {
+                                    Toast.makeText(ChatActivity.this, "Nai-post na!", Toast.LENGTH_SHORT).show();
+                                    loadForumPosts(); // I-refresh ang listahan pagka-post
+                                })
                                 .addOnFailureListener(e -> Toast.makeText(ChatActivity.this, "Error sa pag-post.", Toast.LENGTH_SHORT).show());
                     }
                 }
@@ -266,7 +281,6 @@ public class ChatActivity extends AppCompatActivity {
         }
     }
 
-    // Pansamantalang Helper Class para sa pag-sort ng posts batay sa timestamp
     private static class ForumPostTemp {
         String uid, content;
         long createdAt;
@@ -280,7 +294,6 @@ public class ChatActivity extends AppCompatActivity {
         public long getCreatedAt() { return createdAt; }
     }
 
-    // ChatAdapter Class para sa RecyclerView
     private class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.ChatViewHolder> {
         private List<ForumPost> posts;
 
@@ -306,14 +319,12 @@ public class ChatActivity extends AppCompatActivity {
             boolean isMe = post.getUid() != null && post.getUid().equals(currentUserId);
 
             if (isMe) {
-                // KANAN (Sarili mong chat) - Kulay Blue at White text
                 holder.bubbleWrapper.setGravity(Gravity.END);
                 holder.chatBubble.setBackgroundResource(R.drawable.chat_bubble_right);
                 holder.tvUserName.setVisibility(View.GONE);
                 holder.tvPostContent.setTextColor(Color.WHITE);
                 holder.tvTimestamp.setTextColor(Color.parseColor("#E0E0E0"));
             } else {
-                // KALIWA (Chat ng ibang mangingisda) - Kulay Gray at Black text
                 holder.bubbleWrapper.setGravity(Gravity.START);
                 holder.chatBubble.setBackgroundResource(R.drawable.chat_bubble_left);
                 holder.tvUserName.setVisibility(View.VISIBLE);
