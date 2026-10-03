@@ -18,7 +18,7 @@ import androidx.appcompat.app.AppCompatDelegate;
 import androidx.appcompat.widget.Toolbar;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
-import androidx.swiperefreshlayout.widget.SwipeRefreshLayout; // ✅ SwipeRefreshLayout import
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
@@ -50,7 +50,7 @@ public class LocationActivity extends AppCompatActivity implements OnMapReadyCal
     private LinearLayout alertBannerLayout, actionButtonsLayout;
     private Button btnSaveSpotAction;
     private RecyclerView rvSavedSpots;
-    private SwipeRefreshLayout swipeRefreshLayout; // ✅ SwipeRefreshLayout variable
+    private SwipeRefreshLayout swipeRefreshLayout;
 
     private GoogleMap mMap;
     private Marker userSelectedMarker;
@@ -91,7 +91,7 @@ public class LocationActivity extends AppCompatActivity implements OnMapReadyCal
         rvSavedSpots = findViewById(R.id.rvSavedSpots);
         actionButtonsLayout = findViewById(R.id.actionButtonsLayout);
         btnSaveSpotAction = findViewById(R.id.btnSaveSpotAction);
-        swipeRefreshLayout = findViewById(R.id.swipeRefreshLayout); // ✅ SwipeRefreshLayout initialization
+        swipeRefreshLayout = findViewById(R.id.swipeRefreshLayout);
 
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
                 .findFragmentById(R.id.map);
@@ -107,7 +107,6 @@ public class LocationActivity extends AppCompatActivity implements OnMapReadyCal
             btnSaveSpotAction.setOnClickListener(v -> checkLimitAndSave());
         }
 
-        // ✅ Swipe-to-Refresh Listener
         if (swipeRefreshLayout != null) {
             swipeRefreshLayout.setOnRefreshListener(() -> {
                 loadSavedSpots();
@@ -124,6 +123,10 @@ public class LocationActivity extends AppCompatActivity implements OnMapReadyCal
     @Override
     public void onMapReady(@NonNull GoogleMap googleMap) {
         mMap = googleMap;
+
+        // Gawing Satellite View ang mapa at ayusin ang padding
+        mMap.setMapType(GoogleMap.MAP_TYPE_SATELLITE);
+        mMap.setPadding(0, 0, 0, 70);
 
         LatLng bacoorBay = new LatLng(14.451099, 120.906791);
         mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(bacoorBay, 14f));
@@ -158,28 +161,63 @@ public class LocationActivity extends AppCompatActivity implements OnMapReadyCal
             public void onDataChange(@NonNull DataSnapshot snapshot) {
                 if (!snapshot.exists()) return;
 
+                boolean hasFishGlobalAlert = false;
+                List<String> activeFishBuoys = new ArrayList<>();
+
                 for (DataSnapshot snap : snapshot.getChildren()) {
                     String buoyKey = snap.getKey();
                     Double lat = snap.child("latitude").getValue(Double.class);
                     Double lng = snap.child("longitude").getValue(Double.class);
 
+                    Boolean fishDetected = snap.child("fish_detected").getValue(Boolean.class);
+                    String catchStatus = snap.child("catch_status").getValue(String.class);
+
                     if (lat != null && lng != null) {
                         LatLng pos = new LatLng(lat, lng);
-                        String buoyTitle = "Boya " + buoyKey.replace("buoy_", "");
+                        String buoyNum = buoyKey.replace("buoy_", "");
+                        String buoyTitle = "Boya " + buoyNum;
+
+                        String snippetText;
+                        float markerHue;
+
+                        if (fishDetected != null && fishDetected) {
+                            snippetText = (catchStatus != null && !catchStatus.isEmpty()) ? catchStatus : "🐟 May Isda na Na-detect!";
+                            markerHue = BitmapDescriptorFactory.HUE_GREEN;
+
+                            hasFishGlobalAlert = true;
+                            activeFishBuoys.add(buoyTitle); // Idagdag sa listahan para sa banner
+                        } else {
+                            snippetText = "Aktibong Boya";
+                            markerHue = BitmapDescriptorFactory.HUE_YELLOW;
+                        }
 
                         if (buoyMarkers.containsKey(buoyKey)) {
                             Marker marker = buoyMarkers.get(buoyKey);
                             if (marker != null) {
                                 marker.setPosition(pos);
+                                marker.setTitle(buoyTitle);
+                                marker.setSnippet(snippetText);
+                                marker.setIcon(BitmapDescriptorFactory.defaultMarker(markerHue));
                             }
                         } else {
                             Marker marker = mMap.addMarker(new MarkerOptions()
                                     .position(pos)
                                     .title(buoyTitle)
-                                    .snippet("Aktibong Boya")
-                                    .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_YELLOW)));
+                                    .snippet(snippetText)
+                                    .icon(BitmapDescriptorFactory.defaultMarker(markerHue)));
                             buoyMarkers.put(buoyKey, marker);
                         }
+                    }
+                }
+
+                // ✅ Pagsama-samahin ang lahat ng boya na may isda para sabay-sabay makita sa alert banner
+                if (alertBannerLayout != null && tvAlertBanner != null) {
+                    if (hasFishGlobalAlert) {
+                        alertBannerLayout.setVisibility(View.VISIBLE);
+                        String combinedBuoys = android.text.TextUtils.join(", ", activeFishBuoys);
+                        tvAlertBanner.setText("🐟 Alerto: May nahuling isda sa " + combinedBuoys + "!");
+                    } else {
+                        alertBannerLayout.setVisibility(View.GONE);
                     }
                 }
             }

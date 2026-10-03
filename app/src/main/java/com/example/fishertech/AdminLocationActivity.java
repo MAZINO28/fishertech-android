@@ -18,7 +18,7 @@ import androidx.appcompat.app.AppCompatDelegate;
 import androidx.appcompat.widget.Toolbar;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
-import androidx.swiperefreshlayout.widget.SwipeRefreshLayout; // ✅ Import
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
@@ -50,7 +50,7 @@ public class AdminLocationActivity extends AppCompatActivity implements OnMapRea
     LinearLayout alertBannerLayout, actionButtonsLayout;
     Button btnSaveSpotAction;
     RecyclerView rvSavedSpots;
-    private SwipeRefreshLayout swipeRefreshLayout; // ✅ SwipeRefreshLayout Variable
+    private SwipeRefreshLayout swipeRefreshLayout;
 
     private GoogleMap mMap;
     private Marker userSelectedMarker;
@@ -61,7 +61,7 @@ public class AdminLocationActivity extends AppCompatActivity implements OnMapRea
     private List<SavedSpot> savedSpotList = new ArrayList<>();
     private AdminSavedSpotAdapter adminSavedSpotAdapter;
 
-    private double selectedLat = 14.4580; // Eksaktong gitna ng Bacoor Bay
+    private double selectedLat = 14.4580; // Gitna ng Bacoor Bay
     private double selectedLng = 120.9350;
     private boolean hasSelectedLocation = false;
 
@@ -72,7 +72,7 @@ public class AdminLocationActivity extends AppCompatActivity implements OnMapRea
     protected void onCreate(Bundle savedInstanceState) {
         AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO);
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_location);
+        setContentView(R.layout.activity_admin_location);
 
         mAuth = FirebaseAuth.getInstance();
         mDatabase = FirebaseDatabase.getInstance().getReference().child("FisherTech");
@@ -90,9 +90,8 @@ public class AdminLocationActivity extends AppCompatActivity implements OnMapRea
         rvSavedSpots = findViewById(R.id.rvSavedSpots);
         actionButtonsLayout = findViewById(R.id.actionButtonsLayout);
         btnSaveSpotAction = findViewById(R.id.btnSaveSpotAction);
-        swipeRefreshLayout = findViewById(R.id.swipeRefreshLayout); // ✅ Initialization
+        swipeRefreshLayout = findViewById(R.id.swipeRefreshLayout);
 
-        // I-initialize ang Google Maps Fragment
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
                 .findFragmentById(R.id.map);
         if (mapFragment != null) {
@@ -107,7 +106,6 @@ public class AdminLocationActivity extends AppCompatActivity implements OnMapRea
             btnSaveSpotAction.setOnClickListener(v -> checkLimitAndSave());
         }
 
-        // ✅ Swipe-to-Refresh Listener
         if (swipeRefreshLayout != null) {
             swipeRefreshLayout.setOnRefreshListener(() -> {
                 loadSavedSpots();
@@ -124,14 +122,15 @@ public class AdminLocationActivity extends AppCompatActivity implements OnMapRea
     public void onMapReady(@NonNull GoogleMap googleMap) {
         mMap = googleMap;
 
-        // I-center ang mapa sa mismong katubigan ng Bacoor Bay
+        // Gawing Satellite View ang mapa sa admin side at ayusin ang padding
+        mMap.setMapType(GoogleMap.MAP_TYPE_SATELLITE);
+        mMap.setPadding(0, 0, 0, 70);
+
         LatLng bacoorBayWater = new LatLng(14.451099, 120.906791);
         mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(bacoorBayWater, 14f));
 
-        // Pakinggan ang mga pwesto ng boya mula sa Firebase
         listenToBuoysFromFirebase();
 
-        // Kapag nag-tap ang admin sa totoong mapa
         mMap.setOnMapClickListener(latLng -> {
             selectedLat = latLng.latitude;
             selectedLng = latLng.longitude;
@@ -160,28 +159,61 @@ public class AdminLocationActivity extends AppCompatActivity implements OnMapRea
             public void onDataChange(@NonNull DataSnapshot snapshot) {
                 if (!snapshot.exists()) return;
 
+                boolean hasFishGlobalAlert = false;
+                String fishAlertText = "";
+
                 for (DataSnapshot snap : snapshot.getChildren()) {
-                    String buoyKey = snap.getKey(); // buoy_1, buoy_2, buoy_3
+                    String buoyKey = snap.getKey();
                     Double lat = snap.child("latitude").getValue(Double.class);
                     Double lng = snap.child("longitude").getValue(Double.class);
 
+                    // ✅ Binabasa ang status ng isda mula sa Firebase
+                    Boolean fishDetected = snap.child("fish_detected").getValue(Boolean.class);
+                    String catchStatus = snap.child("catch_status").getValue(String.class);
+
                     if (lat != null && lng != null) {
                         LatLng pos = new LatLng(lat, lng);
-                        String buoyTitle = "Boya " + buoyKey.replace("buoy_", "");
+                        String buoyNum = buoyKey.replace("buoy_", "");
+                        String buoyTitle = "Boya " + buoyNum;
+
+                        String snippetText;
+                        float markerHue;
+
+                        if (fishDetected != null && fishDetected) {
+                            snippetText = (catchStatus != null && !catchStatus.isEmpty()) ? catchStatus : "🐟 May Isda na Na-detect!";
+                            markerHue = BitmapDescriptorFactory.HUE_GREEN; // Berde kapag may huli
+
+                            hasFishGlobalAlert = true;
+                            fishAlertText = "🐟 Alerto: " + buoyTitle + " ay may nahuling isda!";
+                        } else {
+                            snippetText = "Aktibong Boya";
+                            markerHue = BitmapDescriptorFactory.HUE_YELLOW; // Dilaw kung wala pa
+                        }
 
                         if (buoyMarkers.containsKey(buoyKey)) {
                             Marker marker = buoyMarkers.get(buoyKey);
                             if (marker != null) {
                                 marker.setPosition(pos);
+                                marker.setTitle(buoyTitle);
+                                marker.setSnippet(snippetText);
+                                marker.setIcon(BitmapDescriptorFactory.defaultMarker(markerHue));
                             }
                         } else {
                             Marker marker = mMap.addMarker(new MarkerOptions()
                                     .position(pos)
                                     .title(buoyTitle)
-                                    .snippet("Aktibong Boya")
-                                    .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_YELLOW)));
+                                    .snippet(snippetText)
+                                    .icon(BitmapDescriptorFactory.defaultMarker(markerHue)));
                             buoyMarkers.put(buoyKey, marker);
                         }
+                    }
+                }
+
+                // Awtomatikong magpapakita ng banner kung may boya na may isda
+                if (alertBannerLayout != null && tvAlertBanner != null) {
+                    if (hasFishGlobalAlert) {
+                        alertBannerLayout.setVisibility(View.VISIBLE);
+                        tvAlertBanner.setText(fishAlertText);
                     }
                 }
             }

@@ -55,14 +55,15 @@
             <androidx.core.widget.NestedScrollView
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:fillViewport="true">
+                android:fillViewport="true"
+                android:clipToPadding="false">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
                     android:padding="12dp"
-                    android:paddingBottom="100dp">
+                    android:paddingBottom="40dp">
 
                     <androidx.cardview.widget.CardView
                         android:layout_width="match_parent"
@@ -71,11 +72,38 @@
                         app:cardCornerRadius="20dp"
                         app:cardElevation="4dp">
 
-                        <fragment
-                            android:id="@+id/map"
-                            android:name="com.google.android.gms.maps.SupportMapFragment"
+                        <FrameLayout
                             android:layout_width="match_parent"
-                            android:layout_height="match_parent" />
+                            android:layout_height="match_parent">
+
+                            <fragment
+                                android:id="@+id/map"
+                                android:name="com.google.android.gms.maps.SupportMapFragment"
+                                android:layout_width="match_parent"
+                                android:layout_height="match_parent" />
+
+                            <!-- ✅ Pormang Puting Badge Pantakip sa Google Logo -->
+                            <View
+                                android:layout_width="80dp"
+                                android:layout_height="20dp"
+                                android:layout_gravity="bottom|start"
+                                android:layout_marginStart="4dp"
+                                android:layout_marginBottom="32dp"
+                                android:background="#FFFFFF" />
+
+                            <!-- Label sa ibabaw ng badge -->
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_gravity="bottom|start"
+                                android:layout_marginStart="8dp"
+                                android:layout_marginBottom="35dp"
+                                android:text="📍 Bacoor Bay"
+                                android:textColor="#1E4D6B"
+                                android:textSize="10sp"
+                                android:textStyle="bold" />
+
+                        </FrameLayout>
 
                     </androidx.cardview.widget.CardView>
 
@@ -210,7 +238,8 @@
                         android:id="@+id/rvSavedSpots"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:paddingBottom="100dp"
+                        android:paddingBottom="130dp"
+                        android:clipToPadding="false"
                         android:nestedScrollingEnabled="false" />
 
                 </LinearLayout>
