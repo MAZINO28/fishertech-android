@@ -61,13 +61,14 @@ public class LocationActivity extends AppCompatActivity implements OnMapReadyCal
     private List<SavedSpot> savedSpotList = new ArrayList<>();
     private SavedSpotAdapter savedSpotAdapter;
 
-    private double selectedLat = 14.4506; // Default Bacoor Bay
-    private double selectedLng = 120.9358;
+    private double selectedLat = 14.401895; // Default Bacoor Bay
+    private double selectedLng = 120.967415;
     private boolean hasSelectedLocation = false;
 
     private static final int MAX_SAVED_SPOTS = 3;
 
     private final Map<String, Marker> buoyMarkers = new HashMap<>();
+    private final Map<String, Marker> savedSpotMarkers = new HashMap<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -128,10 +129,11 @@ public class LocationActivity extends AppCompatActivity implements OnMapReadyCal
         mMap.setMapType(GoogleMap.MAP_TYPE_SATELLITE);
         mMap.setPadding(0, 0, 0, 70);
 
-        LatLng bacoorBay = new LatLng(14.451099, 120.906791);
+        LatLng bacoorBay = new LatLng(14.401895, 120.967415);
         mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(bacoorBay, 14f));
 
         listenToBuoysFromFirebase();
+        loadSavedSpotsMarkers();
 
         mMap.setOnMapClickListener(latLng -> {
             selectedLat = latLng.latitude;
@@ -147,7 +149,7 @@ public class LocationActivity extends AppCompatActivity implements OnMapReadyCal
             userSelectedMarker = mMap.addMarker(new MarkerOptions()
                     .position(latLng)
                     .title("Piniling Spot")
-                    .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED)));
+                    .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE)));
 
             if (actionButtonsLayout != null) {
                 actionButtonsLayout.setVisibility(View.VISIBLE);
@@ -185,10 +187,10 @@ public class LocationActivity extends AppCompatActivity implements OnMapReadyCal
                             markerHue = BitmapDescriptorFactory.HUE_GREEN;
 
                             hasFishGlobalAlert = true;
-                            activeFishBuoys.add(buoyTitle); // Idagdag sa listahan para sa banner
+                            activeFishBuoys.add(buoyTitle);
                         } else {
                             snippetText = "Aktibong Boya";
-                            markerHue = BitmapDescriptorFactory.HUE_YELLOW;
+                            markerHue = BitmapDescriptorFactory.HUE_RED;
                         }
 
                         if (buoyMarkers.containsKey(buoyKey)) {
@@ -207,10 +209,17 @@ public class LocationActivity extends AppCompatActivity implements OnMapReadyCal
                                     .icon(BitmapDescriptorFactory.defaultMarker(markerHue)));
                             buoyMarkers.put(buoyKey, marker);
                         }
+                    } else {
+                        if (buoyMarkers.containsKey(buoyKey)) {
+                            Marker marker = buoyMarkers.get(buoyKey);
+                            if (marker != null) {
+                                marker.remove();
+                            }
+                            buoyMarkers.remove(buoyKey);
+                        }
                     }
                 }
 
-                // ✅ Pagsama-samahin ang lahat ng boya na may isda para sabay-sabay makita sa alert banner
                 if (alertBannerLayout != null && tvAlertBanner != null) {
                     if (hasFishGlobalAlert) {
                         alertBannerLayout.setVisibility(View.VISIBLE);
@@ -218,6 +227,39 @@ public class LocationActivity extends AppCompatActivity implements OnMapReadyCal
                         tvAlertBanner.setText("🐟 Alerto: May nahuling isda sa " + combinedBuoys + "!");
                     } else {
                         alertBannerLayout.setVisibility(View.GONE);
+                    }
+                }
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) {}
+        });
+    }
+
+    private void loadSavedSpotsMarkers() {
+        mDatabase.child("all_saved_spots").addValueEventListener(new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                for (Marker marker : savedSpotMarkers.values()) {
+                    if (marker != null) marker.remove();
+                }
+                savedSpotMarkers.clear();
+
+                for (DataSnapshot data : snapshot.getChildren()) {
+                    String spotId = data.getKey();
+                    String name = data.child("name").getValue(String.class);
+                    Double lat = data.child("latitude").getValue(Double.class);
+                    Double lng = data.child("longitude").getValue(Double.class);
+
+                    if (name != null && lat != null && lng != null && mMap != null) {
+                        LatLng pos = new LatLng(lat, lng);
+                        Marker marker = mMap.addMarker(new MarkerOptions()
+                                .position(pos)
+                                .title("Saved Spot: " + name)
+                                .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE)));
+                        if (marker != null) {
+                            savedSpotMarkers.put(spotId, marker);
+                        }
                     }
                 }
             }
@@ -238,13 +280,7 @@ public class LocationActivity extends AppCompatActivity implements OnMapReadyCal
                 .addListenerForSingleValueEvent(new ValueEventListener() {
                     @Override
                     public void onDataChange(@NonNull DataSnapshot snapshot) {
-                        if (snapshot.getChildrenCount() >= MAX_SAVED_SPOTS) {
-                            Toast.makeText(LocationActivity.this,
-                                    "Maximum na ang iyong saved spots (3 lang).\nBurahin muna ang isa.",
-                                    Toast.LENGTH_LONG).show();
-                        } else {
-                            showCombinedSaveDialog();
-                        }
+                        showCombinedSaveDialog();
                     }
                     @Override
                     public void onCancelled(@NonNull DatabaseError error) {}
@@ -264,7 +300,7 @@ public class LocationActivity extends AppCompatActivity implements OnMapReadyCal
         if (tvCoords != null)
             tvCoords.setText(String.format("📍 %.4f° N, %.4f° E", selectedLat, selectedLng));
 
-        String[] buoyOptions = {"🟡 Buoy 1", "🟡 Buoy 2", "🟡 Buoy 3"};
+        String[] buoyOptions = {"🔴 Boya Spot 1", "🔴 Boya Spot 2", "🔴 Boya Spot 3"};
         android.widget.ArrayAdapter<String> adapter = new android.widget.ArrayAdapter<>(
                 this, android.R.layout.simple_spinner_item, buoyOptions);
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
@@ -287,10 +323,9 @@ public class LocationActivity extends AppCompatActivity implements OnMapReadyCal
 
             int selectedPosition = spinnerBuoys != null ? spinnerBuoys.getSelectedItemPosition() : 0;
             int buoyNum = selectedPosition + 1;
-            String cleanBuoyName = "Buoy " + buoyNum;
+            String cleanBuoyName = "Boya Spot " + buoyNum; // Binago mula sa "Buoy " patungong "Boya Spot "
 
-            saveCurrentLocation(name, notes.isEmpty() ? "Minarkahan mula sa app" : notes, cleanBuoyName);
-            moveBuoyToSelectedSpot(buoyNum);
+            saveOrUpdateSpot(name, notes.isEmpty() ? "Minarkahan mula sa app" : notes, cleanBuoyName);
 
             dialog.dismiss();
         });
@@ -299,43 +334,57 @@ public class LocationActivity extends AppCompatActivity implements OnMapReadyCal
         dialog.show();
     }
 
-    private void saveCurrentLocation(String spotName, String notes, String assignedBuoy) {
+    private void saveOrUpdateSpot(String spotName, String notes, String assignedBuoy) {
         FirebaseUser user = mAuth.getCurrentUser();
         if (user == null) return;
 
-        String spotId = mDatabase.child("all_saved_spots").push().getKey();
-        Map<String, Object> spotData = new HashMap<>();
-        spotData.put("name", spotName);
-        spotData.put("latitude", selectedLat);
-        spotData.put("longitude", selectedLng);
-        spotData.put("created_at", System.currentTimeMillis());
-        spotData.put("notes", notes);
-        spotData.put("assigned_buoy", assignedBuoy);
-        spotData.put("owner", user.getUid());
+        mDatabase.child("all_saved_spots").orderByChild("owner").equalTo(user.getUid())
+                .addListenerForSingleValueEvent(new ValueEventListener() {
+                    @Override
+                    public void onDataChange(@NonNull DataSnapshot snapshot) {
+                        String existingSpotId = null;
 
-        if (spotId != null) {
-            mDatabase.child("all_saved_spots").child(spotId).setValue(spotData)
-                    .addOnSuccessListener(a -> {
-                        Toast.makeText(this, "Na-save: " + spotName, Toast.LENGTH_SHORT).show();
-                        if (userSelectedMarker != null) {
-                            userSelectedMarker.remove();
-                            userSelectedMarker = null;
+                        for (DataSnapshot data : snapshot.getChildren()) {
+                            String buoy = data.child("assigned_buoy").getValue(String.class);
+                            if (buoy != null && buoy.equals(assignedBuoy)) {
+                                existingSpotId = data.getKey();
+                                break;
+                            }
                         }
-                        if (actionButtonsLayout != null) {
-                            actionButtonsLayout.setVisibility(View.GONE);
+
+                        if (existingSpotId != null) {
+                            mDatabase.child("all_saved_spots").child(existingSpotId).removeValue();
                         }
-                    })
-                    .addOnFailureListener(e -> Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show());
-        }
-    }
 
-    private void moveBuoyToSelectedSpot(int buoyNum) {
-        Map<String, Object> update = new HashMap<>();
-        update.put("latitude", selectedLat);
-        update.put("longitude", selectedLng);
-        update.put("updated_at", System.currentTimeMillis());
+                        String spotId = mDatabase.child("all_saved_spots").push().getKey();
+                        Map<String, Object> spotData = new HashMap<>();
+                        spotData.put("name", spotName);
+                        spotData.put("latitude", selectedLat);
+                        spotData.put("longitude", selectedLng);
+                        spotData.put("created_at", System.currentTimeMillis());
+                        spotData.put("notes", notes);
+                        spotData.put("assigned_buoy", assignedBuoy);
+                        spotData.put("owner", user.getUid());
 
-        mDatabase.child("buoys").child("buoy_" + buoyNum).updateChildren(update);
+                        if (spotId != null) {
+                            mDatabase.child("all_saved_spots").child(spotId).setValue(spotData)
+                                    .addOnSuccessListener(a -> {
+                                        Toast.makeText(LocationActivity.this, "Na-update ang spot para sa " + assignedBuoy, Toast.LENGTH_SHORT).show();
+                                        if (userSelectedMarker != null) {
+                                            userSelectedMarker.remove();
+                                            userSelectedMarker = null;
+                                        }
+                                        if (actionButtonsLayout != null) {
+                                            actionButtonsLayout.setVisibility(View.GONE);
+                                        }
+                                    })
+                                    .addOnFailureListener(e -> Toast.makeText(LocationActivity.this, "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+                        }
+                    }
+
+                    @Override
+                    public void onCancelled(@NonNull DatabaseError error) {}
+                });
     }
 
     private void checkBuoyAlerts() {
@@ -386,6 +435,7 @@ public class LocationActivity extends AppCompatActivity implements OnMapReadyCal
                     tvSpotsCount.setText(savedSpotList.size() + " / " + MAX_SAVED_SPOTS + " spots saved");
                 }
             }
+
             @Override
             public void onCancelled(@NonNull DatabaseError error) {}
         });
@@ -395,9 +445,21 @@ public class LocationActivity extends AppCompatActivity implements OnMapReadyCal
         new AlertDialog.Builder(this)
                 .setTitle("Burahin ang Spot")
                 .setMessage("Sigurado ka bang gusto mong burahin ang \"" + spot.name + "\"?")
-                .setPositiveButton("Oo", (d, w) ->
-                        mDatabase.child("all_saved_spots").child(spot.spotId).removeValue()
-                                .addOnSuccessListener(a -> Toast.makeText(this, "Na-delete na.", Toast.LENGTH_SHORT).show()))
+                .setPositiveButton("Oo", (d, w) -> {
+                    mDatabase.child("all_saved_spots").child(spot.spotId).removeValue()
+                            .addOnSuccessListener(a -> {
+                                Toast.makeText(this, "Na-delete na.", Toast.LENGTH_SHORT).show();
+
+                                if (savedSpotMarkers.containsKey(spot.spotId)) {
+                                    Marker marker = savedSpotMarkers.get(spot.spotId);
+                                    if (marker != null) {
+                                        marker.remove();
+                                    }
+                                    savedSpotMarkers.remove(spot.spotId);
+                                }
+                            })
+                            .addOnFailureListener(e -> Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+                })
                 .setNegativeButton("Hindi", null).show();
     }
 

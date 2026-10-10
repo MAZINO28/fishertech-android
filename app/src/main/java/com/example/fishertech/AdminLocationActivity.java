@@ -61,12 +61,12 @@ public class AdminLocationActivity extends AppCompatActivity implements OnMapRea
     private List<SavedSpot> savedSpotList = new ArrayList<>();
     private AdminSavedSpotAdapter adminSavedSpotAdapter;
 
-    private double selectedLat = 14.4580; // Gitna ng Bacoor Bay
-    private double selectedLng = 120.9350;
+    private double selectedLat = 14.401895; // Gitna ng Bacoor Bay
+    private double selectedLng = 120.967415;
     private boolean hasSelectedLocation = false;
 
-    private static final int MAX_SAVED_SPOTS = 3;
     private final Map<String, Marker> buoyMarkers = new HashMap<>();
+    private final Map<String, Marker> savedSpotMarkers = new HashMap<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -110,6 +110,7 @@ public class AdminLocationActivity extends AppCompatActivity implements OnMapRea
             swipeRefreshLayout.setOnRefreshListener(() -> {
                 loadSavedSpots();
                 checkBuoyAlerts();
+                swipeRefreshLayout.setRefreshing(false);
             });
         }
 
@@ -126,10 +127,11 @@ public class AdminLocationActivity extends AppCompatActivity implements OnMapRea
         mMap.setMapType(GoogleMap.MAP_TYPE_SATELLITE);
         mMap.setPadding(0, 0, 0, 70);
 
-        LatLng bacoorBayWater = new LatLng(14.451099, 120.906791);
+        LatLng bacoorBayWater = new LatLng(14.401895, 120.967415);
         mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(bacoorBayWater, 14f));
 
         listenToBuoysFromFirebase();
+        loadSavedSpotsMarkers();
 
         mMap.setOnMapClickListener(latLng -> {
             selectedLat = latLng.latitude;
@@ -145,7 +147,7 @@ public class AdminLocationActivity extends AppCompatActivity implements OnMapRea
             userSelectedMarker = mMap.addMarker(new MarkerOptions()
                     .position(latLng)
                     .title("Piniling Spot ng Admin")
-                    .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED)));
+                    .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE)));
 
             if (actionButtonsLayout != null) {
                 actionButtonsLayout.setVisibility(View.VISIBLE);
@@ -160,14 +162,13 @@ public class AdminLocationActivity extends AppCompatActivity implements OnMapRea
                 if (!snapshot.exists()) return;
 
                 boolean hasFishGlobalAlert = false;
-                String fishAlertText = "";
+                List<String> activeFishBuoys = new ArrayList<>();
 
                 for (DataSnapshot snap : snapshot.getChildren()) {
                     String buoyKey = snap.getKey();
                     Double lat = snap.child("latitude").getValue(Double.class);
                     Double lng = snap.child("longitude").getValue(Double.class);
 
-                    // ✅ Binabasa ang status ng isda mula sa Firebase
                     Boolean fishDetected = snap.child("fish_detected").getValue(Boolean.class);
                     String catchStatus = snap.child("catch_status").getValue(String.class);
 
@@ -181,13 +182,13 @@ public class AdminLocationActivity extends AppCompatActivity implements OnMapRea
 
                         if (fishDetected != null && fishDetected) {
                             snippetText = (catchStatus != null && !catchStatus.isEmpty()) ? catchStatus : "🐟 May Isda na Na-detect!";
-                            markerHue = BitmapDescriptorFactory.HUE_GREEN; // Berde kapag may huli
+                            markerHue = BitmapDescriptorFactory.HUE_GREEN;
 
                             hasFishGlobalAlert = true;
-                            fishAlertText = "🐟 Alerto: " + buoyTitle + " ay may nahuling isda!";
+                            activeFishBuoys.add(buoyTitle);
                         } else {
                             snippetText = "Aktibong Boya";
-                            markerHue = BitmapDescriptorFactory.HUE_YELLOW; // Dilaw kung wala pa
+                            markerHue = BitmapDescriptorFactory.HUE_RED;
                         }
 
                         if (buoyMarkers.containsKey(buoyKey)) {
@@ -206,14 +207,57 @@ public class AdminLocationActivity extends AppCompatActivity implements OnMapRea
                                     .icon(BitmapDescriptorFactory.defaultMarker(markerHue)));
                             buoyMarkers.put(buoyKey, marker);
                         }
+                    } else {
+                        if (buoyMarkers.containsKey(buoyKey)) {
+                            Marker marker = buoyMarkers.get(buoyKey);
+                            if (marker != null) {
+                                marker.remove();
+                            }
+                            buoyMarkers.remove(buoyKey);
+                        }
                     }
                 }
 
-                // Awtomatikong magpapakita ng banner kung may boya na may isda
                 if (alertBannerLayout != null && tvAlertBanner != null) {
                     if (hasFishGlobalAlert) {
                         alertBannerLayout.setVisibility(View.VISIBLE);
-                        tvAlertBanner.setText(fishAlertText);
+                        String combinedBuoys = android.text.TextUtils.join(", ", activeFishBuoys);
+                        tvAlertBanner.setText("🐟 Alerto: May nahuling isda sa " + combinedBuoys + "!");
+                    } else {
+                        alertBannerLayout.setVisibility(View.GONE);
+                    }
+                }
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) {}
+        });
+    }
+
+    private void loadSavedSpotsMarkers() {
+        mDatabase.child("all_saved_spots").addValueEventListener(new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                for (Marker marker : savedSpotMarkers.values()) {
+                    if (marker != null) marker.remove();
+                }
+                savedSpotMarkers.clear();
+
+                for (DataSnapshot data : snapshot.getChildren()) {
+                    String spotId = data.getKey();
+                    String name = data.child("name").getValue(String.class);
+                    Double lat = data.child("latitude").getValue(Double.class);
+                    Double lng = data.child("longitude").getValue(Double.class);
+
+                    if (name != null && lat != null && lng != null && mMap != null) {
+                        LatLng pos = new LatLng(lat, lng);
+                        Marker marker = mMap.addMarker(new MarkerOptions()
+                                .position(pos)
+                                .title("Saved Spot: " + name)
+                                .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE)));
+                        if (marker != null) {
+                            savedSpotMarkers.put(spotId, marker);
+                        }
                     }
                 }
             }
@@ -253,7 +297,7 @@ public class AdminLocationActivity extends AppCompatActivity implements OnMapRea
         if (tvCoords != null)
             tvCoords.setText(String.format("📍 %.4f° N, %.4f° E", selectedLat, selectedLng));
 
-        String[] buoyOptions = {"🟡 Buoy 1", "🟡 Buoy 2", "🟡 Buoy 3"};
+        String[] buoyOptions = {"🔴 Boya Spot 1", "🔴 Boya Spot 2", "🔴 Boya Spot 3"};
         android.widget.ArrayAdapter<String> adapter = new android.widget.ArrayAdapter<>(
                 this, android.R.layout.simple_spinner_item, buoyOptions);
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
@@ -276,10 +320,9 @@ public class AdminLocationActivity extends AppCompatActivity implements OnMapRea
 
             int selectedPosition = spinnerBuoys != null ? spinnerBuoys.getSelectedItemPosition() : 0;
             int buoyNum = selectedPosition + 1;
-            String cleanBuoyName = "Buoy " + buoyNum;
+            String cleanBuoyName = "Boya Spot " + buoyNum; // Naka-sync na sa Boya Spot
 
-            saveCurrentLocation(name, notes.isEmpty() ? "Minarkahan ng Admin" : notes, cleanBuoyName);
-            moveBuoyToSelectedSpot(buoyNum);
+            saveOrUpdateSpot(name, notes.isEmpty() ? "Minarkahan ng Admin" : notes, cleanBuoyName);
 
             dialog.dismiss();
         });
@@ -288,51 +331,60 @@ public class AdminLocationActivity extends AppCompatActivity implements OnMapRea
         dialog.show();
     }
 
-    private void saveCurrentLocation(String spotName, String notes, String assignedBuoy) {
+    private void saveOrUpdateSpot(String spotName, String notes, String assignedBuoy) {
         FirebaseUser user = mAuth.getCurrentUser();
         if (user == null) return;
 
-        String spotId = mDatabase.child("all_saved_spots").push().getKey();
-        Map<String, Object> spotData = new HashMap<>();
-        spotData.put("name", spotName);
-        spotData.put("latitude", selectedLat);
-        spotData.put("longitude", selectedLng);
-        spotData.put("created_at", System.currentTimeMillis());
-        spotData.put("notes", notes);
-        spotData.put("assigned_buoy", assignedBuoy);
-        spotData.put("owner", user.getUid());
+        mDatabase.child("all_saved_spots").addListenerForSingleValueEvent(new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                String existingSpotId = null;
 
-        if (spotId != null) {
-            mDatabase.child("all_saved_spots").child(spotId).setValue(spotData)
-                    .addOnSuccessListener(a -> {
-                        Toast.makeText(this, "Na-save: " + spotName, Toast.LENGTH_SHORT).show();
-                        if (userSelectedMarker != null) {
-                            userSelectedMarker.remove();
-                            userSelectedMarker = null;
-                        }
-                        if (actionButtonsLayout != null) {
-                            actionButtonsLayout.setVisibility(View.GONE);
-                        }
-                    })
-                    .addOnFailureListener(e -> Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show());
-        }
-    }
+                for (DataSnapshot data : snapshot.getChildren()) {
+                    String buoy = data.child("assigned_buoy").getValue(String.class);
+                    if (buoy != null && buoy.equals(assignedBuoy)) {
+                        existingSpotId = data.getKey();
+                        break;
+                    }
+                }
 
-    private void moveBuoyToSelectedSpot(int buoyNum) {
-        Map<String, Object> update = new HashMap<>();
-        update.put("latitude", selectedLat);
-        update.put("longitude", selectedLng);
-        update.put("updated_at", System.currentTimeMillis());
+                if (existingSpotId != null) {
+                    mDatabase.child("all_saved_spots").child(existingSpotId).removeValue();
+                }
 
-        mDatabase.child("buoys").child("buoy_" + buoyNum).updateChildren(update)
-                .addOnSuccessListener(aVoid ->
-                        Toast.makeText(this, "Buoy " + buoyNum + " ay nailipat na!", Toast.LENGTH_SHORT).show())
-                .addOnFailureListener(e ->
-                        Toast.makeText(this, "Error sa buoy: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+                String spotId = mDatabase.child("all_saved_spots").push().getKey();
+                Map<String, Object> spotData = new HashMap<>();
+                spotData.put("name", spotName);
+                spotData.put("latitude", selectedLat);
+                spotData.put("longitude", selectedLng);
+                spotData.put("created_at", System.currentTimeMillis());
+                spotData.put("notes", notes);
+                spotData.put("assigned_buoy", assignedBuoy);
+                spotData.put("owner", user.getUid());
+
+                if (spotId != null) {
+                    mDatabase.child("all_saved_spots").child(spotId).setValue(spotData)
+                            .addOnSuccessListener(a -> {
+                                Toast.makeText(AdminLocationActivity.this, "Na-update ang spot para sa " + assignedBuoy, Toast.LENGTH_SHORT).show();
+                                if (userSelectedMarker != null) {
+                                    userSelectedMarker.remove();
+                                    userSelectedMarker = null;
+                                }
+                                if (actionButtonsLayout != null) {
+                                    actionButtonsLayout.setVisibility(View.GONE);
+                                }
+                            })
+                            .addOnFailureListener(e -> Toast.makeText(AdminLocationActivity.this, "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+                }
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) {}
+        });
     }
 
     private void checkBuoyAlerts() {
-        mDatabase.child("boya_images").addListenerForSingleValueEvent(new ValueEventListener() {
+        mDatabase.child("boya_images").addValueEventListener(new ValueEventListener() {
             @Override
             public void onDataChange(@NonNull DataSnapshot snapshot) {
                 boolean hasAlert = false;
@@ -350,17 +402,14 @@ public class AdminLocationActivity extends AppCompatActivity implements OnMapRea
                     alertBannerLayout.setVisibility(hasAlert ? View.VISIBLE : View.GONE);
                     if (hasAlert && tvAlertBanner != null) tvAlertBanner.setText(alertMessage);
                 }
-                if (swipeRefreshLayout != null) swipeRefreshLayout.setRefreshing(false);
             }
             @Override
-            public void onCancelled(@NonNull DatabaseError error) {
-                if (swipeRefreshLayout != null) swipeRefreshLayout.setRefreshing(false);
-            }
+            public void onCancelled(@NonNull DatabaseError error) {}
         });
     }
 
     private void loadSavedSpots() {
-        mDatabase.child("all_saved_spots").addListenerForSingleValueEvent(new ValueEventListener() {
+        mDatabase.child("all_saved_spots").addValueEventListener(new ValueEventListener() {
             @Override
             public void onDataChange(@NonNull DataSnapshot snapshot) {
                 savedSpotList.clear();
@@ -381,14 +430,10 @@ public class AdminLocationActivity extends AppCompatActivity implements OnMapRea
                 if (tvSpotsCount != null) {
                     tvSpotsCount.setText(savedSpotList.size() + " total shared spots");
                 }
-                if (swipeRefreshLayout != null) swipeRefreshLayout.setRefreshing(false);
             }
 
             @Override
-            public void onCancelled(@NonNull DatabaseError error) {
-                Toast.makeText(AdminLocationActivity.this, "Error: " + error.getMessage(), Toast.LENGTH_SHORT).show();
-                if (swipeRefreshLayout != null) swipeRefreshLayout.setRefreshing(false);
-            }
+            public void onCancelled(@NonNull DatabaseError error) {}
         });
     }
 
@@ -396,9 +441,21 @@ public class AdminLocationActivity extends AppCompatActivity implements OnMapRea
         new AlertDialog.Builder(this)
                 .setTitle("Burahin ang Spot")
                 .setMessage("Sigurado ka bang gusto mong burahin ang \"" + spot.name + "\"?")
-                .setPositiveButton("Oo", (d, w) ->
-                        mDatabase.child("all_saved_spots").child(spot.spotId).removeValue()
-                                .addOnSuccessListener(a -> Toast.makeText(this, "Na-delete na.", Toast.LENGTH_SHORT).show()))
+                .setPositiveButton("Oo", (d, w) -> {
+                    mDatabase.child("all_saved_spots").child(spot.spotId).removeValue()
+                            .addOnSuccessListener(a -> {
+                                Toast.makeText(this, "Na-delete na.", Toast.LENGTH_SHORT).show();
+
+                                if (savedSpotMarkers.containsKey(spot.spotId)) {
+                                    Marker marker = savedSpotMarkers.get(spot.spotId);
+                                    if (marker != null) {
+                                        marker.remove();
+                                    }
+                                    savedSpotMarkers.remove(spot.spotId);
+                                }
+                            })
+                            .addOnFailureListener(e -> Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+                })
                 .setNegativeButton("Hindi", null).show();
     }
 
