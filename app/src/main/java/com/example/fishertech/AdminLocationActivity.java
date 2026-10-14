@@ -127,7 +127,7 @@ public class AdminLocationActivity extends AppCompatActivity implements OnMapRea
         mMap.setMapType(GoogleMap.MAP_TYPE_SATELLITE);
         mMap.setPadding(0, 0, 0, 70);
 
-        LatLng bacoorBayWater = new LatLng(14.401895, 120.967415);
+        LatLng bacoorBayWater = new LatLng(14.412652, 120.982077);
         mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(bacoorBayWater, 14f));
 
         listenToBuoysFromFirebase();

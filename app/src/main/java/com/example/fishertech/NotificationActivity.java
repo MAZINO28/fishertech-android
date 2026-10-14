@@ -1,5 +1,6 @@
 package com.example.fishertech;
 
+import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -8,12 +9,14 @@ import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.app.AppCompatDelegate;
 import androidx.appcompat.widget.Toolbar;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.google.firebase.database.ChildEventListener;
 import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
@@ -21,8 +24,9 @@ import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.ValueEventListener;
 
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class NotificationActivity extends AppCompatActivity {
 
@@ -31,6 +35,8 @@ public class NotificationActivity extends AppCompatActivity {
     private NotifAdapter adapter;
     private List<NotifModel> notifList;
     private DatabaseReference mDatabase;
+    private SharedPreferences prefs;
+    private boolean isInitialLoad = true;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -38,11 +44,17 @@ public class NotificationActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_notification);
 
-        mDatabase = FirebaseDatabase.getInstance().getReference("notifications");
+        prefs = getSharedPreferences("FisherTechPrefs", MODE_PRIVATE);
+        mDatabase = FirebaseDatabase.getInstance().getReference().child("FisherTech").child("notifications");
 
         setupToolbar();
         setupRecyclerView();
-        loadNotifications();
+
+        // Subaybayan ang galaw at estado ng mga boya batay sa Concept Checklist
+        monitorBuoyAlerts();
+
+        // Makinig sa live-triggered notifications
+        listenToLiveNotifications();
     }
 
     private void setupToolbar() {
@@ -62,27 +74,106 @@ public class NotificationActivity extends AppCompatActivity {
         rvNotifications.setAdapter(adapter);
     }
 
-    private void loadNotifications() {
-        mDatabase.addValueEventListener(new ValueEventListener() {
+    private void listenToLiveNotifications() {
+        notifList.clear();
+        isInitialLoad = true;
+
+        mDatabase.addChildEventListener(new ChildEventListener() {
             @Override
-            public void onDataChange(@NonNull DataSnapshot snapshot) {
-                notifList.clear();
-                for (DataSnapshot data : snapshot.getChildren()) {
-                    NotifModel model = data.getValue(NotifModel.class);
-                    if (model != null) {
-                        notifList.add(model);
-                    }
+            public void onChildAdded(@NonNull DataSnapshot snapshot, @Nullable String previousChildName) {
+                if (isInitialLoad) {
+                    return; // Magsimula sa blangko pagbukas ng screen
                 }
 
-                Collections.reverse(notifList);
-                adapter.notifyDataSetChanged();
+                NotifModel model = snapshot.getValue(NotifModel.class);
+                if (model != null) {
+                    notifList.add(0, model);
+                    adapter.notifyDataSetChanged();
+                }
             }
+
+            @Override
+            public void onChildChanged(@NonNull DataSnapshot snapshot, @Nullable String previousChildName) {}
+
+            @Override
+            public void onChildRemoved(@NonNull DataSnapshot snapshot) {}
+
+            @Override
+            public void onChildMoved(@NonNull DataSnapshot snapshot, @Nullable String previousChildName) {}
 
             @Override
             public void onCancelled(@NonNull DatabaseError error) {
                 Toast.makeText(NotificationActivity.this, "Error: " + error.getMessage(), Toast.LENGTH_SHORT).show();
             }
         });
+
+        mDatabase.addListenerForSingleValueEvent(new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                isInitialLoad = false;
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) {
+                isInitialLoad = false;
+            }
+        });
+    }
+
+    // Naka-focus lang sa Checklist: Unusual movement at possible buoy theft
+    private void monitorBuoyAlerts() {
+        DatabaseReference buoysRef = FirebaseDatabase.getInstance().getReference().child("FisherTech").child("buoys");
+
+        buoysRef.addValueEventListener(new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                for (DataSnapshot buoySnap : snapshot.getChildren()) {
+                    String buoyId = buoySnap.getKey();
+
+                    Boolean isUnauthorized = buoySnap.child("is_unauthorized_movement").getValue(Boolean.class);
+                    Boolean isPossibleTheft = buoySnap.child("is_possible_theft").getValue(Boolean.class);
+                    String statusMessage = buoySnap.child("status_message").getValue(String.class);
+
+                    // 1. Detection of unusual or unauthorized buoy movement
+                    if (Boolean.TRUE.equals(isUnauthorized)) {
+                        String lastNotif = prefs.getString("unauth_" + buoyId, "");
+                        String currentMsg = (statusMessage != null) ? statusMessage : "Kakaibang galaw ang natukoy sa " + buoyId;
+
+                        if (!lastNotif.equals(currentMsg)) {
+                            prefs.edit().putString("unauth_" + buoyId, currentMsg).apply();
+                            postNotificationInternal("BABALA: Kakaibang Galaw ng Boya!", currentMsg, "buoy_movement");
+                        }
+                    }
+
+                    // 2. Location alert notification for possible buoy theft
+                    if (Boolean.TRUE.equals(isPossibleTheft)) {
+                        String lastTheftNotif = prefs.getString("theft_" + buoyId, "");
+                        String theftMsg = (statusMessage != null) ? statusMessage : "Posibleng pagnanakaw o paglipat ng lokasyon sa " + buoyId;
+
+                        if (!lastTheftNotif.equals(theftMsg)) {
+                            prefs.edit().putString("theft_" + buoyId, theftMsg).apply();
+                            postNotificationInternal("ALERTO: Posibleng Pagnanakaw ng Boya!", theftMsg, "buoy_theft");
+                        }
+                    }
+                }
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) {}
+        });
+    }
+
+    private void postNotificationInternal(String title, String message, String type) {
+        String pushId = mDatabase.push().getKey();
+        if (pushId != null) {
+            Map<String, Object> map = new HashMap<>();
+            map.put("title", title);
+            map.put("message", message);
+            map.put("created_at", System.currentTimeMillis());
+            map.put("type", type);
+            map.put("target", "all");
+            mDatabase.child(pushId).setValue(map);
+        }
     }
 
     @Override
@@ -91,12 +182,11 @@ public class NotificationActivity extends AppCompatActivity {
         return true;
     }
 
-
     public static class NotifModel {
         public String title, message, type, target;
-        public long created_at; // Ginawang long para swak sa timestamp ng Firebase mo
+        public long created_at;
 
-        public NotifModel() {} // Required para sa Firebase
+        public NotifModel() {}
 
         public NotifModel(String title, String message, long created_at, String type, String target) {
             this.title = title;
@@ -106,7 +196,6 @@ public class NotificationActivity extends AppCompatActivity {
             this.target = target;
         }
 
-        // Isang function para i-convert ang numerong timestamp papuntang totoong oras (e.g., "11:49 AM | 08 Jun")
         public String getFormattedTime() {
             if (created_at == 0) return "";
             try {
@@ -118,7 +207,6 @@ public class NotificationActivity extends AppCompatActivity {
             }
         }
     }
-
 
     class NotifAdapter extends RecyclerView.Adapter<NotifAdapter.VH> {
         private final List<NotifModel> data;
@@ -138,10 +226,10 @@ public class NotificationActivity extends AppCompatActivity {
         public void onBindViewHolder(@NonNull VH h, int p) {
             NotifModel model = data.get(p);
 
-            h.tvTitle.setText(model.title);     // Lalabas ang dynamic title tulad ng "May Napansin na Sasakyang Pandagat!"
-            h.tvMsg.setText(model.message);     // Lalabas ang dynamic message na may kasamang numero ng Boya (1, 2, o 3)
-            h.tvTime.setText(model.getFormattedTime()); // Lalabas ang tamang oras base sa timestamp
-            h.ivIcon.setImageResource(R.drawable.notification); // Standard icon ng notification mo
+            h.tvTitle.setText(model.title);
+            h.tvMsg.setText(model.message);
+            h.tvTime.setText(model.getFormattedTime());
+            h.ivIcon.setImageResource(R.drawable.notification);
         }
 
         @Override
@@ -152,6 +240,7 @@ public class NotificationActivity extends AppCompatActivity {
         class VH extends RecyclerView.ViewHolder {
             TextView tvTitle, tvMsg, tvTime;
             ImageView ivIcon;
+
             VH(View v) {
                 super(v);
                 tvTitle = v.findViewById(R.id.tvNotifTitle);
