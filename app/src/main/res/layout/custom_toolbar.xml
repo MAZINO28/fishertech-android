@@ -28,34 +28,57 @@
         android:layout_marginStart="5dp"
         android:layout_centerVertical="true"/>
 
-    <LinearLayout
-        android:id="@+id/btnNotificationContainer"
+    <!-- FrameLayout para sa Abiso icon at Badge -->
+    <FrameLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:gravity="center"
         android:layout_alignParentEnd="true"
         android:layout_centerVertical="true"
-        android:layout_marginEnd="20dp"
-        android:background="?attr/selectableItemBackgroundBorderless"
-        android:clickable="true"
-        android:focusable="true">
+        android:layout_marginEnd="20dp">
 
-        <ImageView
-            android:id="@+id/notification"
-            android:layout_width="26dp"
-            android:layout_height="26dp"
-            android:src="@drawable/notification"
-            app:tint="#1E4D6B" />
-
-        <TextView
+        <LinearLayout
+            android:id="@+id/btnNotificationContainer"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Abiso"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:clickable="true"
+            android:focusable="true">
+
+            <ImageView
+                android:id="@+id/notification"
+                android:layout_width="26dp"
+                android:layout_height="26dp"
+                android:src="@drawable/notification"
+                app:tint="#1E4D6B" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Abiso"
+                android:textSize="10sp"
+                android:textColor="#1E4D6B"
+                android:textStyle="bold"
+                android:layout_marginTop="-2dp"/>
+        </LinearLayout>
+
+        <!-- Pula na Bilog (Badge Counter) na naka-posisyon sa kanang itaas ng icon -->
+        <TextView
+            android:id="@+id/tvNotificationBadge"
+            android:layout_width="18dp"
+            android:layout_height="18dp"
+            android:layout_gravity="top|end"
+            android:layout_marginEnd="-2dp"
+            android:layout_marginTop="-2dp"
+            android:background="@drawable/bg_red_circle"
+            android:gravity="center"
+            android:text="0"
+            android:textColor="#FFFFFF"
             android:textSize="10sp"
-            android:textColor="#1E4D6B"
             android:textStyle="bold"
-            android:layout_marginTop="-2dp"/>
-    </LinearLayout>
+            android:visibility="gone" />
+
+    </FrameLayout>
 
 </RelativeLayout>

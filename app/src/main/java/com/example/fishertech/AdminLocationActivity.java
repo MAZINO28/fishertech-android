@@ -48,6 +48,7 @@ public class AdminLocationActivity extends AppCompatActivity implements OnMapRea
     BottomNavigationView bottomNav;
     TextView tvLatitude, tvLongitude, tvAlertBanner, tvSpotsCount;
     LinearLayout alertBannerLayout, actionButtonsLayout;
+    View btnNotification; // ✅ Ginamit ang pangkalahatang View para gumana anuman ang uri sa admin_custom_toolbar.xml
     Button btnSaveSpotAction;
     RecyclerView rvSavedSpots;
     private SwipeRefreshLayout swipeRefreshLayout;
@@ -92,6 +93,12 @@ public class AdminLocationActivity extends AppCompatActivity implements OnMapRea
         btnSaveSpotAction = findViewById(R.id.btnSaveSpotAction);
         swipeRefreshLayout = findViewById(R.id.swipeRefreshLayout);
 
+        // ✅ Sinusubukang hanapin ang notification gamit ang iba't ibang posibleng ID mula sa custom toolbar
+        btnNotification = findViewById(R.id.btnNotificationContainer);
+        if (btnNotification == null) {
+            btnNotification = findViewById(R.id.notification);
+        }
+
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
                 .findFragmentById(R.id.map);
         if (mapFragment != null) {
@@ -104,6 +111,13 @@ public class AdminLocationActivity extends AppCompatActivity implements OnMapRea
 
         if (btnSaveSpotAction != null) {
             btnSaveSpotAction.setOnClickListener(v -> checkLimitAndSave());
+        }
+
+        // ✅ Magbubukas ang NotificationActivity kapag pinindot ang abiso icon/container sa toolbar
+        if (btnNotification != null) {
+            btnNotification.setOnClickListener(v -> {
+                startActivity(new Intent(AdminLocationActivity.this, NotificationActivity.class));
+            });
         }
 
         if (swipeRefreshLayout != null) {
@@ -320,7 +334,7 @@ public class AdminLocationActivity extends AppCompatActivity implements OnMapRea
 
             int selectedPosition = spinnerBuoys != null ? spinnerBuoys.getSelectedItemPosition() : 0;
             int buoyNum = selectedPosition + 1;
-            String cleanBuoyName = "Boya Spot " + buoyNum; // Naka-sync na sa Boya Spot
+            String cleanBuoyName = "Boya Spot " + buoyNum;
 
             saveOrUpdateSpot(name, notes.isEmpty() ? "Minarkahan ng Admin" : notes, cleanBuoyName);
 

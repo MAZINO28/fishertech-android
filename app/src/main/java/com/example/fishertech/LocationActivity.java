@@ -47,7 +47,7 @@ public class LocationActivity extends AppCompatActivity implements OnMapReadyCal
     private Toolbar toolbar;
     private BottomNavigationView bottomNav;
     private TextView tvLatitude, tvLongitude, tvAlertBanner, tvSpotsCount;
-    private LinearLayout alertBannerLayout, actionButtonsLayout;
+    private LinearLayout alertBannerLayout, actionButtonsLayout, btnNotification; // ✅ Idinagdag ang btnNotification declaration
     private Button btnSaveSpotAction;
     private RecyclerView rvSavedSpots;
     private SwipeRefreshLayout swipeRefreshLayout;
@@ -94,6 +94,9 @@ public class LocationActivity extends AppCompatActivity implements OnMapReadyCal
         btnSaveSpotAction = findViewById(R.id.btnSaveSpotAction);
         swipeRefreshLayout = findViewById(R.id.swipeRefreshLayout);
 
+        // ✅ Pag-link ng Notification/Abiso button mula sa toolbar layout
+        btnNotification = findViewById(R.id.btnNotificationContainer);
+
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
                 .findFragmentById(R.id.map);
         if (mapFragment != null) {
@@ -106,6 +109,13 @@ public class LocationActivity extends AppCompatActivity implements OnMapReadyCal
 
         if (btnSaveSpotAction != null) {
             btnSaveSpotAction.setOnClickListener(v -> checkLimitAndSave());
+        }
+
+        // ✅ Click listener para magbukas ng NotificationActivity kapag pinindot ang Abiso
+        if (btnNotification != null) {
+            btnNotification.setOnClickListener(v -> {
+                startActivity(new Intent(LocationActivity.this, NotificationActivity.class));
+            });
         }
 
         if (swipeRefreshLayout != null) {
@@ -323,7 +333,7 @@ public class LocationActivity extends AppCompatActivity implements OnMapReadyCal
 
             int selectedPosition = spinnerBuoys != null ? spinnerBuoys.getSelectedItemPosition() : 0;
             int buoyNum = selectedPosition + 1;
-            String cleanBuoyName = "Boya Spot " + buoyNum; // Binago mula sa "Buoy " patungong "Boya Spot "
+            String cleanBuoyName = "Boya Spot " + buoyNum;
 
             saveOrUpdateSpot(name, notes.isEmpty() ? "Minarkahan mula sa app" : notes, cleanBuoyName);
 

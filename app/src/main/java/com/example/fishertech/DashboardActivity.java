@@ -1,6 +1,7 @@
 package com.example.fishertech;
 
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
@@ -38,8 +39,7 @@ public class DashboardActivity extends AppCompatActivity {
     private ImageView ivWeatherIcon;
     private BottomNavigationView bottomNav;
     private CardView cardBuoyPhoto, cardRecentAnnouncement;
-    private LinearLayout btnNotification;
-    private SwipeRefreshLayout swipeRefreshLayout; // ✅ SwipeRefreshLayout declaration
+    private SwipeRefreshLayout swipeRefreshLayout;
 
     private DatabaseReference mDatabaseSensors, mDatabaseReports;
 
@@ -63,12 +63,14 @@ public class DashboardActivity extends AppCompatActivity {
         fetchLiveWeather();
         fetchLatestAnnouncement();
 
+        // ✅ Subaybayan ang unread notifications badge
+        checkUnreadNotificationBadge();
+
         // ✅ Swipe-to-Refresh Listener
         swipeRefreshLayout.setOnRefreshListener(() -> {
             fetchLiveWeather();
             fetchLatestAnnouncement();
-            // Para sa sensors, naka-realtime listener na ang addValueEventListener,
-            // pero pwede rin nating ihinto ang spinner saglit o hayaang sumabay sa weather.
+            checkUnreadNotificationBadge();
             swipeRefreshLayout.setRefreshing(false);
         });
 
@@ -78,10 +80,15 @@ public class DashboardActivity extends AppCompatActivity {
             });
         }
 
-        if (btnNotification != null) {
-            btnNotification.setOnClickListener(v -> {
-                startActivity(new Intent(DashboardActivity.this, NotificationActivity.class));
-            });
+        // ✅ Pag-click sa Abiso button sa loob ng custom toolbar
+        View toolbarView = findViewById(R.id.toolbar);
+        if (toolbarView != null) {
+            LinearLayout btnNotifContainer = toolbarView.findViewById(R.id.btnNotificationContainer);
+            if (btnNotifContainer != null) {
+                btnNotifContainer.setOnClickListener(v -> {
+                    startActivity(new Intent(DashboardActivity.this, NotificationActivity.class));
+                });
+            }
         }
 
         setupNavigation();
@@ -93,6 +100,8 @@ public class DashboardActivity extends AppCompatActivity {
         if (bottomNav != null) {
             bottomNav.setSelectedItemId(R.id.nav_home);
         }
+        // ✅ I-check muli ang badge agad pagbalik sa dashboard para laging updated
+        checkUnreadNotificationBadge();
     }
 
     private void initViews() {
@@ -113,9 +122,53 @@ public class DashboardActivity extends AppCompatActivity {
         cardBuoyPhoto = findViewById(R.id.cardBuoyPhoto);
         cardRecentAnnouncement = findViewById(R.id.cardRecentAnnouncement);
         bottomNav = findViewById(R.id.bottomNav);
-        btnNotification = findViewById(R.id.btnNotificationContainer);
 
-        swipeRefreshLayout = findViewById(R.id.swipeRefreshLayout); // ✅ Initialization
+        swipeRefreshLayout = findViewById(R.id.swipeRefreshLayout);
+    }
+
+    // ✅ Naayos na badge counter logic para eksaktong mabilang lamang ang mga bagong post pagkatapos basahin
+    private void checkUnreadNotificationBadge() {
+        DatabaseReference notifRef = FirebaseDatabase.getInstance().getReference().child("FisherTech").child("notifications");
+        notifRef.keepSynced(true);
+
+        notifRef.addValueEventListener(new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                SharedPreferences prefs = getSharedPreferences("FisherTechPrefs", MODE_PRIVATE);
+                long lastSeenTime = prefs.getLong("last_seen_notification", 0L);
+
+                int unreadCount = 0;
+                for (DataSnapshot snap : snapshot.getChildren()) {
+                    Long createdAt = snap.child("created_at").getValue(Long.class);
+                    if (createdAt != null && createdAt > lastSeenTime) {
+                        unreadCount++;
+                    }
+                }
+
+                // Kung lumagpas sa 1 o higit pa ang na-count pagkatapos mag-post ng bago,
+                // sinisiguro nating tama ang pagbasa batay sa huling active unread items.
+                // Pwede rin nating limitahan o i-validate kung galing sa ibang user ang notification.
+
+                View toolbarView = findViewById(R.id.toolbar);
+                if (toolbarView != null) {
+                    TextView tvBadge = toolbarView.findViewById(R.id.tvNotificationBadge);
+                    if (tvBadge != null) {
+                        if (unreadCount > 0) {
+                            tvBadge.setVisibility(View.VISIBLE);
+                            tvBadge.setText(String.valueOf(unreadCount));
+                            tvBadge.bringToFront();
+                        } else {
+                            tvBadge.setVisibility(View.GONE);
+                        }
+                    }
+                }
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) {
+                Log.e("BadgeError", "Error loading unread notifications: " + error.getMessage());
+            }
+        });
     }
 
     private void setCurrentDate() {
@@ -193,7 +246,6 @@ public class DashboardActivity extends AppCompatActivity {
                     if (tvAnnouncementTime != null) tvAnnouncementTime.setText("");
                 }
 
-                // ✅ Ihinto ang refresh animation kapag natapos na
                 if (swipeRefreshLayout != null) {
                     swipeRefreshLayout.setRefreshing(false);
                 }
