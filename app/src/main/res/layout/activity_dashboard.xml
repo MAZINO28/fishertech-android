@@ -30,15 +30,19 @@
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:scrollbars="none"
-                android:fillViewport="true"
-                android:clipToPadding="false">
+                android:fillViewport="true">
 
+                <!-- AYOS: huwag gamitin ang android:padding kasama ng paddingBottom.
+                     Kapag may android:padding, hindi gumagana ang paddingBottom.
+                     Kaya hiwa-hiwalay ang padding dito. -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:padding="16dp"
-                    android:paddingBottom="100dp">
+                    android:paddingStart="16dp"
+                    android:paddingTop="16dp"
+                    android:paddingEnd="16dp"
+                    android:paddingBottom="112dp">
 
                     <androidx.cardview.widget.CardView
                         android:layout_width="match_parent"
@@ -317,18 +321,13 @@
 
                         </LinearLayout>
                     </androidx.cardview.widget.CardView>
-                    <androidx.recyclerview.widget.RecyclerView
-                        android:id="@+id/rvSavedSpots"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:paddingBottom="100dp"
-                        android:nestedScrollingEnabled="false" />
 
                 </LinearLayout>
             </ScrollView>
         </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
     </LinearLayout>
 
+    <!-- Floating bottom nav -->
     <androidx.cardview.widget.CardView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

@@ -3,6 +3,7 @@ package com.example.fishertech;
 import android.content.Intent;
 import android.graphics.Color;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -20,7 +21,7 @@ import androidx.appcompat.app.AppCompatDelegate;
 import androidx.appcompat.widget.Toolbar;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
-import androidx.swiperefreshlayout.widget.SwipeRefreshLayout; // ✅ SwipeRefreshLayout Import
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
@@ -50,12 +51,16 @@ public class ChatActivity extends AppCompatActivity {
     private RecyclerView rvForumPosts;
     private FloatingActionButton fabAddPost;
     private ImageView notification;
-    private SwipeRefreshLayout swipeRefreshLayout; // ✅ SwipeRefreshLayout Variable
+    private SwipeRefreshLayout swipeRefreshLayout;
 
     private List<ForumPost> forumList = new ArrayList<>();
     private ChatAdapter chatAdapter;
 
     private DatabaseReference dbRef;
+
+    // ✅ Para sa Real-time Notification Badge Listener
+    private DatabaseReference notifRef;
+    private ValueEventListener badgeListener;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -64,6 +69,7 @@ public class ChatActivity extends AppCompatActivity {
         setContentView(R.layout.activity_chat);
 
         dbRef = FirebaseDatabase.getInstance().getReference();
+        notifRef = FirebaseDatabase.getInstance().getReference().child("FisherTech").child("notifications");
 
         initViews();
 
@@ -93,6 +99,76 @@ public class ChatActivity extends AppCompatActivity {
         setupNavigation();
     }
 
+    // ✅ Simulan ang badge listener tuwing nakikita ang screen
+    @Override
+    protected void onStart() {
+        super.onStart();
+        startBadgeListener();
+    }
+
+    // ✅ Itigil ang listener kapag lumipat ng ibang screen para walang memory leak o stacking
+    @Override
+    protected void onStop() {
+        super.onStop();
+        stopBadgeListener();
+    }
+
+    // ================== UNREAD BADGE SYSTEM ==================
+
+    private void startBadgeListener() {
+        if (badgeListener != null) return;
+
+        badgeListener = new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                long lastSeen = Notificationprefs.getLastSeen(ChatActivity.this);
+
+                int unreadCount = 0;
+                for (DataSnapshot snap : snapshot.getChildren()) {
+                    Long createdAt = snap.child("created_at").getValue(Long.class);
+                    if (createdAt == null) continue;
+
+                    if (createdAt <= lastSeen) continue;
+                    unreadCount++;
+                }
+
+                updateBadge(unreadCount);
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) {
+                Log.e("BadgeError", "Error loading unread notifications: " + error.getMessage());
+            }
+        };
+
+        notifRef.addValueEventListener(badgeListener);
+    }
+
+    private void stopBadgeListener() {
+        if (badgeListener != null && notifRef != null) {
+            notifRef.removeEventListener(badgeListener);
+        }
+        badgeListener = null;
+    }
+
+    private void updateBadge(int unreadCount) {
+        View toolbarView = findViewById(R.id.toolbar);
+        if (toolbarView == null) return;
+
+        TextView tvBadge = toolbarView.findViewById(R.id.tvNotificationBadge);
+        if (tvBadge == null) return;
+
+        if (unreadCount > 0) {
+            tvBadge.setVisibility(View.VISIBLE);
+            tvBadge.setText(unreadCount > 99 ? "99+" : String.valueOf(unreadCount));
+            tvBadge.bringToFront();
+        } else {
+            tvBadge.setVisibility(View.GONE);
+        }
+    }
+
+    // ========================================================
+
     private void initViews() {
         toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
@@ -104,7 +180,7 @@ public class ChatActivity extends AppCompatActivity {
         fabAddPost = findViewById(R.id.fabAddPost);
         notification = findViewById(R.id.notification);
         bottomNav = findViewById(R.id.bottomNav);
-        swipeRefreshLayout = findViewById(R.id.swipeRefreshLayout); // ✅ Initialization
+        swipeRefreshLayout = findViewById(R.id.swipeRefreshLayout);
     }
 
     private void loadForumPosts() {
@@ -157,7 +233,6 @@ public class ChatActivity extends AppCompatActivity {
                                             rvForumPosts.scrollToPosition(forumList.size() - 1);
                                         }
 
-                                        // ✅ Ihinto ang refresh animation pagkatapos ma-load
                                         if (swipeRefreshLayout != null) {
                                             swipeRefreshLayout.setRefreshing(false);
                                         }
@@ -197,7 +272,7 @@ public class ChatActivity extends AppCompatActivity {
     private String formatTimestamp(long timestamp) {
         long currentTime = System.currentTimeMillis();
         long timeDifference = currentTime - timestamp;
-        long oneDayMillis = 24 * 60 * 60 * 1000;
+        long oneDayMillis = 24L * 60L * 60L * 1000L;
 
         Calendar postDate = Calendar.getInstance();
         postDate.setTimeInMillis(timestamp);
@@ -233,18 +308,22 @@ public class ChatActivity extends AppCompatActivity {
             if (!message.isEmpty()) {
                 FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
                 if (user != null) {
-                    String postId = dbRef.child("forum_posts").push().getKey();
+                    final String postId = dbRef.child("forum_posts").push().getKey();
+                    final long now = System.currentTimeMillis();
+
                     Map<String, Object> postValues = new HashMap<>();
                     postValues.put("uid", user.getUid());
                     postValues.put("content", message);
-                    postValues.put("created_at", System.currentTimeMillis());
+                    postValues.put("created_at", now);
                     postValues.put("likes", 0);
 
                     if (postId != null) {
                         dbRef.child("forum_posts").child(postId).setValue(postValues)
                                 .addOnSuccessListener(aVoid -> {
+                                    createForumNotification(postId, user.getUid(), message, now);
+
                                     Toast.makeText(ChatActivity.this, "Nai-post na!", Toast.LENGTH_SHORT).show();
-                                    loadForumPosts(); // I-refresh ang listahan pagka-post
+                                    loadForumPosts();
                                 })
                                 .addOnFailureListener(e -> Toast.makeText(ChatActivity.this, "Error sa pag-post.", Toast.LENGTH_SHORT).show());
                     }
@@ -254,6 +333,30 @@ public class ChatActivity extends AppCompatActivity {
 
         builder.setNegativeButton("I-Cancel", (dialog, which) -> dialog.cancel());
         builder.show();
+    }
+
+    private void createForumNotification(String postId, String uid, String message, long createdAt) {
+        dbRef.child("FisherTech").child("Users").child(uid).child("name")
+                .addListenerForSingleValueEvent(new ValueEventListener() {
+                    @Override
+                    public void onDataChange(@NonNull DataSnapshot userSnap) {
+                        String name = userSnap.exists() ? userSnap.getValue(String.class) : "Mangingisda";
+
+                        Map<String, Object> map = new HashMap<>();
+                        map.put("title", name + " - Forum Chat");
+                        map.put("message", message);
+                        map.put("created_at", createdAt);
+                        map.put("type", "forum_chat");
+                        map.put("target", "all");
+                        map.put("uid", uid);
+
+                        dbRef.child("FisherTech").child("notifications")
+                                .child("forum_" + postId).setValue(map);
+                    }
+
+                    @Override
+                    public void onCancelled(@NonNull DatabaseError error) {}
+                });
     }
 
     private void setupNavigation() {

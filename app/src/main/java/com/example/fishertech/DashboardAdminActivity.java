@@ -14,7 +14,7 @@ import androidx.appcompat.app.AppCompatDelegate;
 import androidx.appcompat.widget.Toolbar;
 import androidx.cardview.widget.CardView;
 import androidx.core.content.ContextCompat;
-import androidx.swiperefreshlayout.widget.SwipeRefreshLayout; // ✅ SwipeRefreshLayout Import
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 import com.android.volley.Request;
 import com.android.volley.RequestQueue;
@@ -41,9 +41,9 @@ public class DashboardAdminActivity extends AppCompatActivity {
     private ImageView ivWeatherIcon;
     private TextView tvUserCount, tvReportCount, tvBuoyCount;
     private LinearLayout layoutActivityLog;
-    private SwipeRefreshLayout swipeRefreshLayout; // ✅ SwipeRefreshLayout Variable
+    private SwipeRefreshLayout swipeRefreshLayout;
 
-    private ImageView ivNotification;
+    private View btnNotification;
     private BottomNavigationView bottomNav;
     private CardView cardBuoyPhoto, cardUsers, cardActiveBuoys, cardReports, cardRecentAnnouncement;
 
@@ -51,6 +51,10 @@ public class DashboardAdminActivity extends AppCompatActivity {
     private DatabaseReference mRefUsers;
     private DatabaseReference mRefReports;
     private DatabaseReference mRefBuoys;
+
+    // ✅ Para sa Real-time Notification Badge Listener
+    private DatabaseReference notifRef;
+    private ValueEventListener badgeListener;
 
     private final String API_KEY = "1cb64f7a9c1182e1511454b51eb047e9";
     private final String LAT = "14.4506";
@@ -69,6 +73,7 @@ public class DashboardAdminActivity extends AppCompatActivity {
         mRefUsers = FirebaseDatabase.getInstance().getReference("FisherTech/Users");
         mRefReports = FirebaseDatabase.getInstance().getReference("reports");
         mRefBuoys = FirebaseDatabase.getInstance().getReference("FisherTech/boya_images");
+        notifRef = FirebaseDatabase.getInstance().getReference().child("FisherTech").child("notifications");
 
         fetchRealtimeData();
         fetchLiveWeather();
@@ -88,6 +93,95 @@ public class DashboardAdminActivity extends AppCompatActivity {
         setupCardClicks();
         setupNavigation();
     }
+
+    // ✅ Simulan ang badge listener tuwing nakikita ang screen
+    @Override
+    protected void onStart() {
+        super.onStart();
+        startBadgeListener();
+    }
+
+    // ✅ Itigil ang listener kapag lumipat ng ibang screen para walang memory leak
+    @Override
+    protected void onStop() {
+        super.onStop();
+        stopBadgeListener();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (bottomNav != null) {
+            bottomNav.setSelectedItemId(R.id.nav_home);
+        }
+        startBadgeListener();
+    }
+
+    // ================== UNREAD BADGE SYSTEM ==================
+
+    private void startBadgeListener() {
+        if (badgeListener != null) return;
+
+        badgeListener = new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                long lastSeen = Notificationprefs.getLastSeen(DashboardAdminActivity.this);
+
+                int unreadCount = 0;
+                for (DataSnapshot snap : snapshot.getChildren()) {
+                    Long createdAt = snap.child("created_at").getValue(Long.class);
+                    if (createdAt == null) continue;
+
+                    if (createdAt <= lastSeen) continue;
+                    unreadCount++;
+                }
+
+                updateBadge(unreadCount);
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) {
+                Log.e("BadgeError", "Error loading unread notifications: " + error.getMessage());
+            }
+        };
+
+        notifRef.addValueEventListener(badgeListener);
+    }
+
+    private void stopBadgeListener() {
+        if (badgeListener != null && notifRef != null) {
+            notifRef.removeEventListener(badgeListener);
+        }
+        badgeListener = null;
+    }
+
+    private void updateBadge(int unreadCount) {
+        // ✅ Sinusubukang hanapin ang badge view nang diretso o sa loob ng toolbar/container
+        TextView tvBadge = findViewById(R.id.tvNotificationBadge);
+
+        if (tvBadge == null) {
+            View toolbarView = findViewById(R.id.toolbar);
+            if (toolbarView != null) {
+                tvBadge = toolbarView.findViewById(R.id.tvNotificationBadge);
+            }
+        }
+
+        if (tvBadge == null && btnNotification != null) {
+            tvBadge = btnNotification.findViewById(R.id.tvNotificationBadge);
+        }
+
+        if (tvBadge == null) return;
+
+        if (unreadCount > 0) {
+            tvBadge.setVisibility(View.VISIBLE);
+            tvBadge.setText(unreadCount > 99 ? "99+" : String.valueOf(unreadCount));
+            tvBadge.bringToFront();
+        } else {
+            tvBadge.setVisibility(View.GONE);
+        }
+    }
+
+    // ========================================================
 
     private void initViews() {
         tvMainTemp = findViewById(R.id.tvMainTemp);
@@ -114,11 +208,21 @@ public class DashboardAdminActivity extends AppCompatActivity {
         cardActiveBuoys = findViewById(R.id.cardActiveBuoys);
         cardReports = findViewById(R.id.cardReports);
         cardRecentAnnouncement = findViewById(R.id.cardRecentAnnouncement);
-        swipeRefreshLayout = findViewById(R.id.swipeRefreshLayout); // ✅ Initialization
+        swipeRefreshLayout = findViewById(R.id.swipeRefreshLayout);
 
-        Toolbar toolbar = findViewById(R.id.toolbar);
-        if (toolbar != null) {
-            ivNotification = toolbar.findViewById(R.id.notification);
+        // ✅ Inaayos ang paghahanap sa notification container gamit ang tamang ID sa bagong toolbar layout
+        View toolbarView = findViewById(R.id.toolbar);
+        if (toolbarView != null) {
+            btnNotification = toolbarView.findViewById(R.id.btnNotificationContainer);
+            if (btnNotification == null) {
+                btnNotification = toolbarView.findViewById(R.id.notification);
+            }
+        }
+        if (btnNotification == null) {
+            btnNotification = findViewById(R.id.btnNotificationContainer);
+            if (btnNotification == null) {
+                btnNotification = findViewById(R.id.notification);
+            }
         }
     }
 
@@ -374,8 +478,8 @@ public class DashboardAdminActivity extends AppCompatActivity {
     }
 
     private void setupNotification() {
-        if (ivNotification != null) {
-            ivNotification.setOnClickListener(v -> {
+        if (btnNotification != null) {
+            btnNotification.setOnClickListener(v -> {
                 startActivity(new Intent(DashboardAdminActivity.this, NotificationActivity.class));
             });
         }

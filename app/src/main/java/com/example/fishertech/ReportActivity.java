@@ -7,11 +7,14 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.provider.MediaStore;
+import android.util.Log;
+import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -19,7 +22,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.app.AppCompatDelegate;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
-import androidx.swiperefreshlayout.widget.SwipeRefreshLayout; // ✅ SwipeRefreshLayout Import
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.firebase.auth.FirebaseAuth;
@@ -32,11 +35,11 @@ import com.google.firebase.database.ValueEventListener;
 
 import java.io.OutputStream;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
+import java.util.ArrayList;
 import java.util.Locale;
 import java.util.Map;
 
@@ -48,13 +51,17 @@ public class ReportActivity extends AppCompatActivity {
     private RecyclerView rvReportFeed;
     private BottomNavigationView bottomNav;
     private ImageView notification;
-    private SwipeRefreshLayout swipeRefreshLayout; // ✅ SwipeRefreshLayout Variable
+    private SwipeRefreshLayout swipeRefreshLayout;
 
     private List<ReportPost> postList = new ArrayList<>();
     private ReportAdapter reportAdapter;
 
     private DatabaseReference dbRef;
     private FirebaseAuth mAuth;
+
+    // ✅ Para sa Real-time Notification Badge Listener
+    private DatabaseReference notifRef;
+    private ValueEventListener badgeListener;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -64,6 +71,7 @@ public class ReportActivity extends AppCompatActivity {
 
         mAuth = FirebaseAuth.getInstance();
         dbRef = FirebaseDatabase.getInstance().getReference();
+        notifRef = FirebaseDatabase.getInstance().getReference().child("FisherTech").child("notifications");
 
         radioGroupCategory = findViewById(R.id.radioGroupCategory);
         etDescription = findViewById(R.id.etDescription);
@@ -72,7 +80,7 @@ public class ReportActivity extends AppCompatActivity {
         rvReportFeed = findViewById(R.id.rvReportFeed);
         bottomNav = findViewById(R.id.bottomNav);
         notification = findViewById(R.id.notification);
-        swipeRefreshLayout = findViewById(R.id.swipeRefreshLayout); // ✅ Initialization
+        swipeRefreshLayout = findViewById(R.id.swipeRefreshLayout);
 
         if (notification != null) {
             notification.setOnClickListener(v -> {
@@ -95,6 +103,76 @@ public class ReportActivity extends AppCompatActivity {
         btnSubmitReport.setOnClickListener(v -> submitReportToFirebase());
         setupNavigation();
     }
+
+    // ✅ Simulan ang badge listener tuwing nakikita ang screen
+    @Override
+    protected void onStart() {
+        super.onStart();
+        startBadgeListener();
+    }
+
+    // ✅ Itigil ang listener kapag lumipat ng ibang screen para walang memory leak
+    @Override
+    protected void onStop() {
+        super.onStop();
+        stopBadgeListener();
+    }
+
+    // ================== UNREAD BADGE SYSTEM ==================
+
+    private void startBadgeListener() {
+        if (badgeListener != null) return;
+
+        badgeListener = new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                long lastSeen = Notificationprefs.getLastSeen(ReportActivity.this);
+
+                int unreadCount = 0;
+                for (DataSnapshot snap : snapshot.getChildren()) {
+                    Long createdAt = snap.child("created_at").getValue(Long.class);
+                    if (createdAt == null) continue;
+
+                    if (createdAt <= lastSeen) continue;
+                    unreadCount++;
+                }
+
+                updateBadge(unreadCount);
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) {
+                Log.e("BadgeError", "Error loading unread notifications: " + error.getMessage());
+            }
+        };
+
+        notifRef.addValueEventListener(badgeListener);
+    }
+
+    private void stopBadgeListener() {
+        if (badgeListener != null && notifRef != null) {
+            notifRef.removeEventListener(badgeListener);
+        }
+        badgeListener = null;
+    }
+
+    private void updateBadge(int unreadCount) {
+        View toolbarView = findViewById(R.id.toolbar);
+        if (toolbarView == null) return;
+
+        TextView tvBadge = toolbarView.findViewById(R.id.tvNotificationBadge);
+        if (tvBadge == null) return;
+
+        if (unreadCount > 0) {
+            tvBadge.setVisibility(View.VISIBLE);
+            tvBadge.setText(unreadCount > 99 ? "99+" : String.valueOf(unreadCount));
+            tvBadge.bringToFront();
+        } else {
+            tvBadge.setVisibility(View.GONE);
+        }
+    }
+
+    // ========================================================
 
     private void saveReportAsTxtFile(ReportPost post) {
         String fileName = "FisherTech_Report_" + System.currentTimeMillis() + ".txt";
@@ -173,7 +251,7 @@ public class ReportActivity extends AppCompatActivity {
                     if (createdAt != null) {
                         long currentTime = System.currentTimeMillis();
                         long timeDifference = currentTime - createdAt;
-                        long oneDayMillis = 24 * 60 * 60 * 1000;
+                        long oneDayMillis = 24L * 60L * 60L * 1000L;
 
                         Calendar postDate = Calendar.getInstance();
                         postDate.setTimeInMillis(createdAt);
@@ -258,27 +336,56 @@ public class ReportActivity extends AppCompatActivity {
 
         FirebaseUser user = mAuth.getCurrentUser();
         if (user != null) {
-            String reportId = dbRef.child("reports").push().getKey();
+            final String reportId = dbRef.child("reports").push().getKey();
+            final long now = System.currentTimeMillis();
+
             Map<String, Object> reportData = new HashMap<>();
             reportData.put("uid", user.getUid());
             reportData.put("type", cat);
             reportData.put("description", desc);
             reportData.put("additional_remarks", remarks);
             reportData.put("status", "received");
-            reportData.put("created_at", System.currentTimeMillis());
+            reportData.put("created_at", now);
 
             if (reportId != null) {
                 dbRef.child("reports").child(reportId).setValue(reportData).addOnCompleteListener(task -> {
                     if (task.isSuccessful()) {
+                        createReportNotification(reportId, user.getUid(), cat, desc, now);
+
                         etDescription.setText("");
                         etAdditionalRemarks.setText("");
                         radioGroupCategory.clearCheck();
                         Toast.makeText(this, "Ulat naipadala na!", Toast.LENGTH_SHORT).show();
-                        loadReportsFromFirebase(); // I-refresh ang listahan matapos mag-submit
+                        loadReportsFromFirebase();
                     }
                 });
             }
         }
+    }
+
+    private void createReportNotification(String reportId, String uid, String category,
+                                          String description, long createdAt) {
+        dbRef.child("FisherTech").child("Users").child(uid).child("name")
+                .addListenerForSingleValueEvent(new ValueEventListener() {
+                    @Override
+                    public void onDataChange(@NonNull DataSnapshot userSnap) {
+                        String name = userSnap.exists() ? userSnap.getValue(String.class) : "Mangingisda";
+
+                        Map<String, Object> map = new HashMap<>();
+                        map.put("title", name + " - " + category);
+                        map.put("message", description);
+                        map.put("created_at", createdAt);
+                        map.put("type", "community_report");
+                        map.put("target", "all");
+                        map.put("uid", uid);
+
+                        dbRef.child("FisherTech").child("notifications")
+                                .child("report_" + reportId).setValue(map);
+                    }
+
+                    @Override
+                    public void onCancelled(@NonNull DatabaseError error) {}
+                });
     }
 
     private void setupNavigation() {

@@ -1,7 +1,6 @@
 package com.example.fishertech;
 
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
@@ -43,6 +42,10 @@ public class DashboardActivity extends AppCompatActivity {
 
     private DatabaseReference mDatabaseSensors, mDatabaseReports;
 
+    // ✅ Iisang listener lang para sa badge (hindi na dumadami kada onResume/refresh)
+    private DatabaseReference notifRef;
+    private ValueEventListener badgeListener;
+
     private final String API_KEY = "1cb64f7a9c1182e1511454b51eb047e9";
     private final String LAT = "14.4506";
     private final String LON = "120.9358";
@@ -58,21 +61,20 @@ public class DashboardActivity extends AppCompatActivity {
 
         mDatabaseSensors = FirebaseDatabase.getInstance().getReference("FisherTech/sensors");
         mDatabaseReports = FirebaseDatabase.getInstance().getReference("reports");
+        notifRef = FirebaseDatabase.getInstance().getReference().child("FisherTech").child("notifications");
 
         fetchRealtimeData();
         fetchLiveWeather();
         fetchLatestAnnouncement();
 
-        // ✅ Subaybayan ang unread notifications badge
-        checkUnreadNotificationBadge();
-
         // ✅ Swipe-to-Refresh Listener
-        swipeRefreshLayout.setOnRefreshListener(() -> {
-            fetchLiveWeather();
-            fetchLatestAnnouncement();
-            checkUnreadNotificationBadge();
-            swipeRefreshLayout.setRefreshing(false);
-        });
+        if (swipeRefreshLayout != null) {
+            swipeRefreshLayout.setOnRefreshListener(() -> {
+                fetchLiveWeather();
+                fetchLatestAnnouncement();
+                swipeRefreshLayout.setRefreshing(false);
+            });
+        }
 
         if (cardBuoyPhoto != null) {
             cardBuoyPhoto.setOnClickListener(v -> {
@@ -94,14 +96,27 @@ public class DashboardActivity extends AppCompatActivity {
         setupNavigation();
     }
 
+    // ✅ Simulan ang badge listener tuwing nakikita ang screen
+    // (babasahin ulit ang "last seen" pagbalik mula sa NotificationActivity)
+    @Override
+    protected void onStart() {
+        super.onStart();
+        startBadgeListener();
+    }
+
+    // ✅ Itigil ang listener kapag hindi na nakikita para walang stacking/leak
+    @Override
+    protected void onStop() {
+        super.onStop();
+        stopBadgeListener();
+    }
+
     @Override
     protected void onResume() {
         super.onResume();
         if (bottomNav != null) {
             bottomNav.setSelectedItemId(R.id.nav_home);
         }
-        // ✅ I-check muli ang badge agad pagbalik sa dashboard para laging updated
-        checkUnreadNotificationBadge();
     }
 
     private void initViews() {
@@ -126,50 +141,64 @@ public class DashboardActivity extends AppCompatActivity {
         swipeRefreshLayout = findViewById(R.id.swipeRefreshLayout);
     }
 
-    // ✅ Naayos na badge counter logic para eksaktong mabilang lamang ang mga bagong post pagkatapos basahin
-    private void checkUnreadNotificationBadge() {
-        DatabaseReference notifRef = FirebaseDatabase.getInstance().getReference().child("FisherTech").child("notifications");
-        notifRef.keepSynced(true);
+    // ================== UNREAD BADGE ==================
 
-        notifRef.addValueEventListener(new ValueEventListener() {
+    private void startBadgeListener() {
+        if (badgeListener != null) return; // may active na
+
+        badgeListener = new ValueEventListener() {
             @Override
             public void onDataChange(@NonNull DataSnapshot snapshot) {
-                SharedPreferences prefs = getSharedPreferences("FisherTechPrefs", MODE_PRIVATE);
-                long lastSeenTime = prefs.getLong("last_seen_notification", 0L);
+                // Laging kunin ang pinakabagong "last seen" sa bawat update
+                long lastSeen = Notificationprefs.getLastSeen(DashboardActivity.this);
 
                 int unreadCount = 0;
                 for (DataSnapshot snap : snapshot.getChildren()) {
                     Long createdAt = snap.child("created_at").getValue(Long.class);
-                    if (createdAt != null && createdAt > lastSeenTime) {
-                        unreadCount++;
-                    }
+                    if (createdAt == null) continue;
+
+                    // Bilangin lang ang mas bago kaysa sa huling nabasa
+                    if (createdAt <= lastSeen) continue;
+
+                    unreadCount++;
                 }
 
-                // Kung lumagpas sa 1 o higit pa ang na-count pagkatapos mag-post ng bago,
-                // sinisiguro nating tama ang pagbasa batay sa huling active unread items.
-                // Pwede rin nating limitahan o i-validate kung galing sa ibang user ang notification.
-
-                View toolbarView = findViewById(R.id.toolbar);
-                if (toolbarView != null) {
-                    TextView tvBadge = toolbarView.findViewById(R.id.tvNotificationBadge);
-                    if (tvBadge != null) {
-                        if (unreadCount > 0) {
-                            tvBadge.setVisibility(View.VISIBLE);
-                            tvBadge.setText(String.valueOf(unreadCount));
-                            tvBadge.bringToFront();
-                        } else {
-                            tvBadge.setVisibility(View.GONE);
-                        }
-                    }
-                }
+                updateBadge(unreadCount);
             }
 
             @Override
             public void onCancelled(@NonNull DatabaseError error) {
                 Log.e("BadgeError", "Error loading unread notifications: " + error.getMessage());
             }
-        });
+        };
+
+        notifRef.addValueEventListener(badgeListener);
     }
+
+    private void stopBadgeListener() {
+        if (badgeListener != null && notifRef != null) {
+            notifRef.removeEventListener(badgeListener);
+        }
+        badgeListener = null;
+    }
+
+    private void updateBadge(int unreadCount) {
+        View toolbarView = findViewById(R.id.toolbar);
+        if (toolbarView == null) return;
+
+        TextView tvBadge = toolbarView.findViewById(R.id.tvNotificationBadge);
+        if (tvBadge == null) return;
+
+        if (unreadCount > 0) {
+            tvBadge.setVisibility(View.VISIBLE);
+            tvBadge.setText(unreadCount > 99 ? "99+" : String.valueOf(unreadCount));
+            tvBadge.bringToFront();
+        } else {
+            tvBadge.setVisibility(View.GONE);
+        }
+    }
+
+    // ==================================================
 
     private void setCurrentDate() {
         if (tvDate != null) {

@@ -3,6 +3,7 @@ package com.example.fishertech;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.Button;
@@ -47,7 +48,7 @@ public class LocationActivity extends AppCompatActivity implements OnMapReadyCal
     private Toolbar toolbar;
     private BottomNavigationView bottomNav;
     private TextView tvLatitude, tvLongitude, tvAlertBanner, tvSpotsCount;
-    private LinearLayout alertBannerLayout, actionButtonsLayout, btnNotification; // ✅ Idinagdag ang btnNotification declaration
+    private LinearLayout alertBannerLayout, actionButtonsLayout, btnNotification;
     private Button btnSaveSpotAction;
     private RecyclerView rvSavedSpots;
     private SwipeRefreshLayout swipeRefreshLayout;
@@ -57,6 +58,10 @@ public class LocationActivity extends AppCompatActivity implements OnMapReadyCal
 
     private DatabaseReference mDatabase;
     private FirebaseAuth mAuth;
+
+    // ✅ Para sa Real-time Notification Badge Listener
+    private DatabaseReference notifRef;
+    private ValueEventListener badgeListener;
 
     private List<SavedSpot> savedSpotList = new ArrayList<>();
     private SavedSpotAdapter savedSpotAdapter;
@@ -78,6 +83,7 @@ public class LocationActivity extends AppCompatActivity implements OnMapReadyCal
 
         mAuth = FirebaseAuth.getInstance();
         mDatabase = FirebaseDatabase.getInstance().getReference().child("FisherTech");
+        notifRef = FirebaseDatabase.getInstance().getReference().child("FisherTech").child("notifications");
 
         toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
@@ -130,6 +136,76 @@ public class LocationActivity extends AppCompatActivity implements OnMapReadyCal
         checkBuoyAlerts();
         setupNavigation();
     }
+
+    // ✅ Simulan ang badge listener tuwing nakikita ang screen
+    @Override
+    protected void onStart() {
+        super.onStart();
+        startBadgeListener();
+    }
+
+    // ✅ Itigil ang listener kapag lumipat ng ibang screen para walang memory leak
+    @Override
+    protected void onStop() {
+        super.onStop();
+        stopBadgeListener();
+    }
+
+    // ================== UNREAD BADGE SYSTEM ==================
+
+    private void startBadgeListener() {
+        if (badgeListener != null) return;
+
+        badgeListener = new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                long lastSeen = Notificationprefs.getLastSeen(LocationActivity.this);
+
+                int unreadCount = 0;
+                for (DataSnapshot snap : snapshot.getChildren()) {
+                    Long createdAt = snap.child("created_at").getValue(Long.class);
+                    if (createdAt == null) continue;
+
+                    if (createdAt <= lastSeen) continue;
+                    unreadCount++;
+                }
+
+                updateBadge(unreadCount);
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) {
+                Log.e("BadgeError", "Error loading unread notifications: " + error.getMessage());
+            }
+        };
+
+        notifRef.addValueEventListener(badgeListener);
+    }
+
+    private void stopBadgeListener() {
+        if (badgeListener != null && notifRef != null) {
+            notifRef.removeEventListener(badgeListener);
+        }
+        badgeListener = null;
+    }
+
+    private void updateBadge(int unreadCount) {
+        View toolbarView = findViewById(R.id.toolbar);
+        if (toolbarView == null) return;
+
+        TextView tvBadge = toolbarView.findViewById(R.id.tvNotificationBadge);
+        if (tvBadge == null) return;
+
+        if (unreadCount > 0) {
+            tvBadge.setVisibility(View.VISIBLE);
+            tvBadge.setText(unreadCount > 99 ? "99+" : String.valueOf(unreadCount));
+            tvBadge.bringToFront();
+        } else {
+            tvBadge.setVisibility(View.GONE);
+        }
+    }
+
+    // ========================================================
 
     @Override
     public void onMapReady(@NonNull GoogleMap googleMap) {

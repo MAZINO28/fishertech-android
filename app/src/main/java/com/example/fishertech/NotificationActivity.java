@@ -1,6 +1,5 @@
 package com.example.fishertech;
 
-import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.view.LayoutInflater;
@@ -16,17 +15,19 @@ import androidx.appcompat.widget.Toolbar;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
-import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.database.Query;
 import com.google.firebase.database.ValueEventListener;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class NotificationActivity extends AppCompatActivity {
 
@@ -37,6 +38,13 @@ public class NotificationActivity extends AppCompatActivity {
     private DatabaseReference mDatabase;
     private SharedPreferences prefs;
 
+    // Para ma-remove ang mga listener kapag hindi na nakikita ang screen
+    private final List<Query> activeQueries = new ArrayList<>();
+    private final List<ValueEventListener> activeListeners = new ArrayList<>();
+
+    // Mga key na ino-proseso na o tapos na sa session na ito (iwas doble)
+    private final Set<String> handledKeys = new HashSet<>();
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO);
@@ -46,15 +54,41 @@ public class NotificationActivity extends AppCompatActivity {
         prefs = getSharedPreferences("FisherTechPrefs", MODE_PRIVATE);
         mDatabase = FirebaseDatabase.getInstance().getReference().child("FisherTech").child("notifications");
 
-        prefs.edit().putLong("last_seen_notification", System.currentTimeMillis()).apply();
+        // ❌ TINANGGAL: dating "last_seen = ngayon" dito. Mali iyon kasi ang mga bagong
+        // notification ay nagagawa PAGKATAPOS nito, kaya nabibilang na unread.
+        // Ngayon, ang "last seen" ay sinesave base sa pinakabagong notification na nakita sa feed.
 
         setupToolbar();
         setupRecyclerView();
+    }
 
+    @Override
+    protected void onStart() {
+        super.onStart();
         monitorBuoyAlerts();
         monitorNewReports();
         monitorNewForumPosts();
         loadNotificationsFeed();
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        stopListening();
+    }
+
+    private void listen(Query query, ValueEventListener listener) {
+        query.addValueEventListener(listener);
+        activeQueries.add(query);
+        activeListeners.add(listener);
+    }
+
+    private void stopListening() {
+        for (int i = 0; i < activeQueries.size(); i++) {
+            activeQueries.get(i).removeEventListener(activeListeners.get(i));
+        }
+        activeQueries.clear();
+        activeListeners.clear();
     }
 
     private void setupToolbar() {
@@ -75,17 +109,23 @@ public class NotificationActivity extends AppCompatActivity {
     }
 
     private void loadNotificationsFeed() {
-        mDatabase.orderByChild("created_at").addValueEventListener(new ValueEventListener() {
+        listen(mDatabase.orderByChild("created_at"), new ValueEventListener() {
             @Override
             public void onDataChange(@NonNull DataSnapshot snapshot) {
                 notifList.clear();
+                long latest = 0;
                 for (DataSnapshot snap : snapshot.getChildren()) {
                     NotifModel model = snap.getValue(NotifModel.class);
                     if (model != null) {
                         notifList.add(0, model);
+                        if (model.created_at > latest) latest = model.created_at;
                     }
                 }
                 adapter.notifyDataSetChanged();
+
+                // ✅ Lahat ng nakikita sa screen na ito ay "nabasa" na.
+                // Tumatakbo rin ito sa bawat bagong dating habang bukas ang screen.
+                Notificationprefs.markSeen(NotificationActivity.this, latest);
             }
 
             @Override
@@ -95,36 +135,76 @@ public class NotificationActivity extends AppCompatActivity {
         });
     }
 
+    // ================== PAGGAWA NG NOTIFICATION (WALANG DUPLICATE) ==================
+
+    /**
+     * True kung dapat pang iproseso ang key. Hindi na uulitin kung nagawa na
+     * (naka-save sa prefs) o ino-proseso pa lang sa session na ito.
+     */
+    private boolean claim(String key) {
+        if (prefs.getBoolean("notif_done_" + key, false)) return false;
+        return handledKeys.add(key);
+    }
+
+    /**
+     * Gagawa ng notification gamit ang FIXED na key. Kaya kahit ilang device o
+     * ilang beses patakbuhin, iisang notification lang ang mabubuo (hindi na doble).
+     */
+    private void createIfAbsent(final String key, final String title, final String message,
+                                final String type, final String uid, final long createdAt) {
+        final DatabaseReference ref = mDatabase.child(key);
+        ref.addListenerForSingleValueEvent(new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                if (!snapshot.exists()) {
+                    Map<String, Object> map = new HashMap<>();
+                    map.put("title", title);
+                    map.put("message", message);
+                    map.put("created_at", createdAt);
+                    map.put("type", type);
+                    map.put("target", "all");
+                    if (uid != null) map.put("uid", uid);
+                    ref.setValue(map);
+                }
+                prefs.edit().putBoolean("notif_done_" + key, true).apply();
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) {
+                handledKeys.remove(key); // para ma-retry sa susunod
+            }
+        });
+    }
+
     private void monitorBuoyAlerts() {
         DatabaseReference buoysRef = FirebaseDatabase.getInstance().getReference().child("FisherTech").child("buoys");
 
-        buoysRef.addValueEventListener(new ValueEventListener() {
+        listen(buoysRef, new ValueEventListener() {
             @Override
             public void onDataChange(@NonNull DataSnapshot snapshot) {
                 for (DataSnapshot buoySnap : snapshot.getChildren()) {
                     String buoyId = buoySnap.getKey();
+                    if (buoyId == null) continue;
 
                     Boolean isUnauthorized = buoySnap.child("is_unauthorized_movement").getValue(Boolean.class);
                     Boolean isPossibleTheft = buoySnap.child("is_possible_theft").getValue(Boolean.class);
                     String statusMessage = buoySnap.child("status_message").getValue(String.class);
 
                     if (Boolean.TRUE.equals(isUnauthorized)) {
-                        String lastNotif = prefs.getString("unauth_" + buoyId, "");
-                        String currentMsg = (statusMessage != null) ? statusMessage : "Kakaibang galaw ang natukoy sa " + buoyId;
-
-                        if (!lastNotif.equals(currentMsg)) {
-                            prefs.edit().putString("unauth_" + buoyId, currentMsg).apply();
-                            postNotificationInternal("BABALA: Kakaibang Galaw ng Boya!", currentMsg, "buoy_movement", null);
+                        String msg = (statusMessage != null) ? statusMessage : "Kakaibang galaw ang natukoy sa " + buoyId;
+                        String key = "buoy_move_" + buoyId + "_" + msg.hashCode();
+                        if (claim(key)) {
+                            createIfAbsent(key, "BABALA: Kakaibang Galaw ng Boya!", msg,
+                                    "buoy_movement", null, System.currentTimeMillis());
                         }
                     }
 
                     if (Boolean.TRUE.equals(isPossibleTheft)) {
-                        String lastTheftNotif = prefs.getString("theft_" + buoyId, "");
-                        String theftMsg = (statusMessage != null) ? statusMessage : "Posibleng pagnanakaw o paglipat ng lokasyon sa " + buoyId;
-
-                        if (!lastTheftNotif.equals(theftMsg)) {
-                            prefs.edit().putString("theft_" + buoyId, theftMsg).apply();
-                            postNotificationInternal("ALERTO: Posibleng Pagnanakaw ng Boya!", theftMsg, "buoy_theft", null);
+                        String msg = (statusMessage != null) ? statusMessage : "Posibleng pagnanakaw o paglipat ng lokasyon sa " + buoyId;
+                        String key = "buoy_theft_" + buoyId + "_" + msg.hashCode();
+                        if (claim(key)) {
+                            createIfAbsent(key, "ALERTO: Posibleng Pagnanakaw ng Boya!", msg,
+                                    "buoy_theft", null, System.currentTimeMillis());
                         }
                     }
                 }
@@ -138,54 +218,52 @@ public class NotificationActivity extends AppCompatActivity {
     private void monitorNewReports() {
         DatabaseReference reportsRef = FirebaseDatabase.getInstance().getReference().child("reports");
 
-        reportsRef.addValueEventListener(new ValueEventListener() {
+        listen(reportsRef, new ValueEventListener() {
             @Override
             public void onDataChange(@NonNull DataSnapshot snapshot) {
                 for (DataSnapshot reportSnap : snapshot.getChildren()) {
                     final String reportId = reportSnap.getKey();
-                    boolean isNotified = prefs.getBoolean("report_notif_" + reportId, false);
+                    if (reportId == null) continue;
 
-                    if (!isNotified) {
-                        String tempCategory = reportSnap.child("type").getValue(String.class);
-                        if (tempCategory == null) tempCategory = reportSnap.child("category").getValue(String.class);
-                        if (tempCategory == null) tempCategory = "Bagong Ulat";
-                        final String category = tempCategory;
+                    final String key = "report_" + reportId;
+                    if (!claim(key)) continue;
 
-                        String tempDescription = reportSnap.child("description").getValue(String.class);
-                        if (tempDescription == null) tempDescription = reportSnap.child("message").getValue(String.class);
-                        if (tempDescription == null) tempDescription = "May nag-post ng bagong ulat sa komunidad.";
-                        final String description = tempDescription;
+                    String tempCategory = reportSnap.child("type").getValue(String.class);
+                    if (tempCategory == null) tempCategory = reportSnap.child("category").getValue(String.class);
+                    if (tempCategory == null) tempCategory = "Bagong Ulat";
+                    final String category = tempCategory;
 
-                        final String uid = reportSnap.child("uid").getValue(String.class);
+                    String tempDescription = reportSnap.child("description").getValue(String.class);
+                    if (tempDescription == null) tempDescription = reportSnap.child("message").getValue(String.class);
+                    if (tempDescription == null) tempDescription = "May nag-post ng bagong ulat sa komunidad.";
+                    final String description = tempDescription;
 
-                        if (uid != null) {
-                            DatabaseReference userRef = FirebaseDatabase.getInstance().getReference().child("FisherTech").child("Users").child(uid).child("name");
-                            userRef.addListenerForSingleValueEvent(new ValueEventListener() {
-                                @Override
-                                public void onDataChange(@NonNull DataSnapshot userSnap) {
-                                    String name = userSnap.exists() ? userSnap.getValue(String.class) : "Mangingisda";
-                                    String title = name + " - " + category;
+                    final String uid = reportSnap.child("uid").getValue(String.class);
 
-                                    if (reportId != null) {
-                                        prefs.edit().putBoolean("report_notif_" + reportId, true).apply();
-                                    }
-                                    postNotificationInternal(title, description, "community_report", uid);
-                                }
+                    // ✅ Gamitin ang ACTUAL na oras ng pag-post ng ulat, hindi ang oras na binuksan ang Abiso
+                    Long reportTime = reportSnap.child("created_at").getValue(Long.class);
+                    final long createdAt = (reportTime != null) ? reportTime : System.currentTimeMillis();
 
-                                @Override
-                                public void onCancelled(@NonNull DatabaseError error) {
-                                    if (reportId != null) {
-                                        prefs.edit().putBoolean("report_notif_" + reportId, true).apply();
-                                    }
-                                    postNotificationInternal("Bagong Ulat: " + category, description, "community_report", uid);
-                                }
-                            });
-                        } else {
-                            if (reportId != null) {
-                                prefs.edit().putBoolean("report_notif_" + reportId, true).apply();
+                    if (uid != null) {
+                        DatabaseReference userRef = FirebaseDatabase.getInstance().getReference()
+                                .child("FisherTech").child("Users").child(uid).child("name");
+                        userRef.addListenerForSingleValueEvent(new ValueEventListener() {
+                            @Override
+                            public void onDataChange(@NonNull DataSnapshot userSnap) {
+                                String name = userSnap.exists() ? userSnap.getValue(String.class) : "Mangingisda";
+                                createIfAbsent(key, name + " - " + category, description,
+                                        "community_report", uid, createdAt);
                             }
-                            postNotificationInternal("Bagong Ulat: " + category, description, "community_report", null);
-                        }
+
+                            @Override
+                            public void onCancelled(@NonNull DatabaseError error) {
+                                createIfAbsent(key, "Bagong Ulat: " + category, description,
+                                        "community_report", uid, createdAt);
+                            }
+                        });
+                    } else {
+                        createIfAbsent(key, "Bagong Ulat: " + category, description,
+                                "community_report", null, createdAt);
                     }
                 }
             }
@@ -198,48 +276,47 @@ public class NotificationActivity extends AppCompatActivity {
     private void monitorNewForumPosts() {
         DatabaseReference forumRef = FirebaseDatabase.getInstance().getReference().child("forum_posts");
 
-        forumRef.addValueEventListener(new ValueEventListener() {
+        listen(forumRef, new ValueEventListener() {
             @Override
             public void onDataChange(@NonNull DataSnapshot snapshot) {
                 for (DataSnapshot postSnap : snapshot.getChildren()) {
                     final String postId = postSnap.getKey();
-                    boolean isNotified = prefs.getBoolean("forum_notif_" + postId, false);
+                    if (postId == null) continue;
 
-                    if (!isNotified) {
-                        String content = postSnap.child("content").getValue(String.class);
-                        if (content == null) content = "May bagong mensahe sa forum chat.";
-                        final String messageContent = content;
+                    final String key = "forum_" + postId;
+                    if (!claim(key)) continue;
 
-                        final String uid = postSnap.child("uid").getValue(String.class);
+                    String content = postSnap.child("content").getValue(String.class);
+                    if (content == null) content = "May bagong mensahe sa forum chat.";
+                    final String messageContent = content;
 
-                        if (uid != null) {
-                            DatabaseReference userRef = FirebaseDatabase.getInstance().getReference().child("FisherTech").child("Users").child(uid).child("name");
-                            userRef.addListenerForSingleValueEvent(new ValueEventListener() {
-                                @Override
-                                public void onDataChange(@NonNull DataSnapshot userSnap) {
-                                    String name = userSnap.exists() ? userSnap.getValue(String.class) : "Mangingisda";
-                                    String title = name + " - Forum Chat";
+                    final String uid = postSnap.child("uid").getValue(String.class);
 
-                                    if (postId != null) {
-                                        prefs.edit().putBoolean("forum_notif_" + postId, true).apply();
-                                    }
-                                    postNotificationInternal(title, messageContent, "forum_chat", uid);
-                                }
+                    // ✅ Gamitin ang oras ng mismong chat post kung meron
+                    Long postTime = postSnap.child("created_at").getValue(Long.class);
+                    if (postTime == null) postTime = postSnap.child("timestamp").getValue(Long.class);
+                    final long createdAt = (postTime != null) ? postTime : System.currentTimeMillis();
 
-                                @Override
-                                public void onCancelled(@NonNull DatabaseError error) {
-                                    if (postId != null) {
-                                        prefs.edit().putBoolean("forum_notif_" + postId, true).apply();
-                                    }
-                                    postNotificationInternal("Bagong Chat sa Forum", messageContent, "forum_chat", uid);
-                                }
-                            });
-                        } else {
-                            if (postId != null) {
-                                prefs.edit().putBoolean("forum_notif_" + postId, true).apply();
+                    if (uid != null) {
+                        DatabaseReference userRef = FirebaseDatabase.getInstance().getReference()
+                                .child("FisherTech").child("Users").child(uid).child("name");
+                        userRef.addListenerForSingleValueEvent(new ValueEventListener() {
+                            @Override
+                            public void onDataChange(@NonNull DataSnapshot userSnap) {
+                                String name = userSnap.exists() ? userSnap.getValue(String.class) : "Mangingisda";
+                                createIfAbsent(key, name + " - Forum Chat", messageContent,
+                                        "forum_chat", uid, createdAt);
                             }
-                            postNotificationInternal("Bagong Chat sa Forum", messageContent, "forum_chat", null);
-                        }
+
+                            @Override
+                            public void onCancelled(@NonNull DatabaseError error) {
+                                createIfAbsent(key, "Bagong Chat sa Forum", messageContent,
+                                        "forum_chat", uid, createdAt);
+                            }
+                        });
+                    } else {
+                        createIfAbsent(key, "Bagong Chat sa Forum", messageContent,
+                                "forum_chat", null, createdAt);
                     }
                 }
             }
@@ -249,23 +326,6 @@ public class NotificationActivity extends AppCompatActivity {
         });
     }
 
-    // ✅ Na-update para isama ang 'uid' sa notification data structure
-    private void postNotificationInternal(String title, String message, String type, String uid) {
-        String pushId = mDatabase.push().getKey();
-        if (pushId != null) {
-            Map<String, Object> map = new HashMap<>();
-            map.put("title", title);
-            map.put("message", message);
-            map.put("created_at", System.currentTimeMillis());
-            map.put("type", type);
-            map.put("target", "all");
-            if (uid != null) {
-                map.put("uid", uid); // Naipapasa na ngayon ang UID ng nag-post!
-            }
-            mDatabase.child(pushId).setValue(map);
-        }
-    }
-
     @Override
     public boolean onSupportNavigateUp() {
         onBackPressed();
@@ -273,7 +333,7 @@ public class NotificationActivity extends AppCompatActivity {
     }
 
     public static class NotifModel {
-        public String title, message, type, target, uid; // Idinagdag ang uid field dito
+        public String title, message, type, target, uid;
         public long created_at;
 
         public NotifModel() {}
