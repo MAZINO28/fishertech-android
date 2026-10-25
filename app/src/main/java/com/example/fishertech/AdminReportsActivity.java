@@ -61,6 +61,8 @@ public class AdminReportsActivity extends AppCompatActivity {
     // ✅ Para sa Real-time Notification Badge Listener
     private DatabaseReference notifRef;
     private ValueEventListener badgeListener;
+    private BottomNavigationBadgeListener bottomNavigationBadgeListener;
+    private ValueEventListener reportsListener;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -108,9 +110,9 @@ public class AdminReportsActivity extends AppCompatActivity {
             swipeRefreshLayout.setOnRefreshListener(this::loadReportsFromFirebase);
         }
 
-        loadReportsFromFirebase();
         btnSubmitReport.setOnClickListener(v -> submitReportToFirebase());
         setupNavigation();
+        bottomNavigationBadgeListener = new BottomNavigationBadgeListener(this, bottomNav);
     }
 
     // ✅ Simulan ang badge listener tuwing nakikita ang screen
@@ -118,6 +120,8 @@ public class AdminReportsActivity extends AppCompatActivity {
     protected void onStart() {
         super.onStart();
         startBadgeListener();
+        bottomNavigationBadgeListener.start();
+        startReportsListener();
     }
 
     // ✅ Itigil ang listener kapag lumipat ng ibang screen para walang memory leak
@@ -125,6 +129,15 @@ public class AdminReportsActivity extends AppCompatActivity {
     protected void onStop() {
         super.onStop();
         stopBadgeListener();
+        bottomNavigationBadgeListener.stop();
+        stopReportsListener();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        Notificationprefs.setLastSeenUlat(this, System.currentTimeMillis());
+        bottomNavigationBadgeListener.clearBadge(R.id.nav_report);
     }
 
     // ================== UNREAD BADGE SYSTEM ==================
@@ -239,14 +252,31 @@ public class AdminReportsActivity extends AppCompatActivity {
             dbRef.child("reports").child(reportId).removeValue()
                     .addOnSuccessListener(aVoid -> {
                         Toast.makeText(this, "Tagumpay na na-delete ang ulat.", Toast.LENGTH_SHORT).show();
-                        loadReportsFromFirebase();
                     })
                     .addOnFailureListener(e -> Toast.makeText(this, "Nabigo sa pag-delete: " + e.getMessage(), Toast.LENGTH_SHORT).show());
         }
     }
 
     private void loadReportsFromFirebase() {
-        dbRef.child("reports").addListenerForSingleValueEvent(new ValueEventListener() {
+        dbRef.child("reports").addListenerForSingleValueEvent(createReportsListener());
+    }
+
+    private void startReportsListener() {
+        if (reportsListener == null) {
+            reportsListener = createReportsListener();
+            dbRef.child("reports").addValueEventListener(reportsListener);
+        }
+    }
+
+    private void stopReportsListener() {
+        if (reportsListener != null) {
+            dbRef.child("reports").removeEventListener(reportsListener);
+            reportsListener = null;
+        }
+    }
+
+    private ValueEventListener createReportsListener() {
+        return new ValueEventListener() {
             @Override
             public void onDataChange(@NonNull DataSnapshot snapshot) {
                 postList.clear();
@@ -301,12 +331,14 @@ public class AdminReportsActivity extends AppCompatActivity {
                         dbRef.child("FisherTech")
                                 .child("Users")
                                 .child(uid)
-                                .child("name")
                                 .addListenerForSingleValueEvent(new ValueEventListener() {
                                     @Override
                                     public void onDataChange(@NonNull DataSnapshot userSnapshot) {
-                                        String name = userSnapshot.exists() ? userSnapshot.getValue(String.class) : "ADMIN";
-                                        postList.add(0, new ReportPost(reportId, name, category, desc, remarks, finalTime));
+                                        String name = userSnapshot.child("name").getValue(String.class);
+                                        if (name == null) name = "ADMIN";
+                                        String profileImageUrl = userSnapshot.child("profile_pic").getValue(String.class);
+                                        postList.add(0, new ReportPost(reportId, name, category, desc, remarks,
+                                                finalTime, profileImageUrl));
 
                                         processedCount[0]++;
                                         if (processedCount[0] == totalChildren) {
@@ -339,7 +371,7 @@ public class AdminReportsActivity extends AppCompatActivity {
                 Toast.makeText(AdminReportsActivity.this, "Error: " + error.getMessage(), Toast.LENGTH_SHORT).show();
                 if (swipeRefreshLayout != null) swipeRefreshLayout.setRefreshing(false);
             }
-        });
+        };
     }
 
     private void submitReportToFirebase() {
@@ -394,11 +426,13 @@ public class AdminReportsActivity extends AppCompatActivity {
     // ✅ Helper method para gumawa ng notification mula sa admin reports side
     private void createAdminReportNotification(String reportId, String uid, String category,
                                                String description, long createdAt) {
-        dbRef.child("FisherTech").child("Users").child(uid).child("name")
+        dbRef.child("FisherTech").child("Users").child(uid)
                 .addListenerForSingleValueEvent(new ValueEventListener() {
                     @Override
                     public void onDataChange(@NonNull DataSnapshot userSnap) {
-                        String name = userSnap.exists() ? userSnap.getValue(String.class) : "Admin";
+                        String name = userSnap.child("name").getValue(String.class);
+                        if (name == null) name = "Admin";
+                        String profileUrl = userSnap.child("profile_pic").getValue(String.class);
 
                         Map<String, Object> map = new HashMap<>();
                         map.put("title", name + " - " + category);
@@ -407,6 +441,9 @@ public class AdminReportsActivity extends AppCompatActivity {
                         map.put("type", "community_report");
                         map.put("target", "all");
                         map.put("uid", uid);
+                        if (profileUrl != null && !profileUrl.trim().isEmpty()) {
+                            map.put("senderProfileUrl", profileUrl);
+                        }
 
                         dbRef.child("FisherTech").child("notifications")
                                 .child("report_" + reportId).setValue(map);
@@ -455,18 +492,29 @@ public class AdminReportsActivity extends AppCompatActivity {
         public String description;
         public String additionalRemarks;
         public String timestamp;
+        public String profileImageUrl;
 
         public ReportPost(String reportId, String name, String category, String description, String additionalRemarks, String timestamp) {
+            this(reportId, name, category, description, additionalRemarks, timestamp, null);
+        }
+
+        public ReportPost(String reportId, String name, String category, String description, String additionalRemarks,
+                          String timestamp, String profileImageUrl) {
             this.reportId = reportId;
             this.name = name;
             this.category = category;
             this.description = description;
             this.additionalRemarks = additionalRemarks;
             this.timestamp = timestamp;
+            this.profileImageUrl = profileImageUrl;
         }
 
         public String getReportId() {
             return reportId;
+        }
+
+        public String getProfileImageUrl() {
+            return profileImageUrl;
         }
     }
 }

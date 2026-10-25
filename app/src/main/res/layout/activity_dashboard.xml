@@ -270,10 +270,22 @@
                                 android:layout_height="wrap_content"
                                 android:layout_marginBottom="4dp">
 
+                                <ImageView
+                                    android:id="@+id/ivReportAuthorProfile"
+                                    android:layout_width="32dp"
+                                    android:layout_height="32dp"
+                                    android:layout_alignParentStart="true"
+                                    android:layout_centerVertical="true"
+                                    android:layout_marginEnd="8dp"
+                                    android:contentDescription="Report author profile picture"
+                                    android:scaleType="centerCrop" />
+
                                 <TextView
                                     android:id="@+id/tvReportUserName"
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
+                                    android:layout_toEndOf="@id/ivReportAuthorProfile"
+                                    android:layout_centerVertical="true"
                                     android:text="Pangalan ng User"
                                     android:textSize="16sp"
                                     android:textStyle="bold"

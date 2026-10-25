@@ -16,6 +16,7 @@ import androidx.cardview.widget.CardView;
 import androidx.core.content.ContextCompat;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
+import com.bumptech.glide.Glide;
 import com.android.volley.Request;
 import com.android.volley.RequestQueue;
 import com.android.volley.toolbox.JsonObjectRequest;
@@ -38,7 +39,7 @@ public class DashboardAdminActivity extends AppCompatActivity {
 
     private TextView tvMainTemp, tvWaterQuality, tvWaveHeight, tvWaterTemp, tvCondition, tvDate;
     private TextView tvReportUserName, tvReportCategory, tvAnnouncementMessage, tvReportAdditional, tvAnnouncementTime;
-    private ImageView ivWeatherIcon;
+    private ImageView ivWeatherIcon, ivReportAuthorProfile;
     private TextView tvUserCount, tvReportCount, tvBuoyCount;
     private LinearLayout layoutActivityLog;
     private SwipeRefreshLayout swipeRefreshLayout;
@@ -55,6 +56,7 @@ public class DashboardAdminActivity extends AppCompatActivity {
     // ✅ Para sa Real-time Notification Badge Listener
     private DatabaseReference notifRef;
     private ValueEventListener badgeListener;
+    private BottomNavigationBadgeListener bottomNavigationBadgeListener;
 
     private final String API_KEY = "1cb64f7a9c1182e1511454b51eb047e9";
     private final String LAT = "14.4506";
@@ -92,6 +94,7 @@ public class DashboardAdminActivity extends AppCompatActivity {
         setupNotification();
         setupCardClicks();
         setupNavigation();
+        bottomNavigationBadgeListener = new BottomNavigationBadgeListener(this, bottomNav);
     }
 
     // ✅ Simulan ang badge listener tuwing nakikita ang screen
@@ -99,6 +102,7 @@ public class DashboardAdminActivity extends AppCompatActivity {
     protected void onStart() {
         super.onStart();
         startBadgeListener();
+        bottomNavigationBadgeListener.start();
     }
 
     // ✅ Itigil ang listener kapag lumipat ng ibang screen para walang memory leak
@@ -106,6 +110,7 @@ public class DashboardAdminActivity extends AppCompatActivity {
     protected void onStop() {
         super.onStop();
         stopBadgeListener();
+        bottomNavigationBadgeListener.stop();
     }
 
     @Override
@@ -200,6 +205,7 @@ public class DashboardAdminActivity extends AppCompatActivity {
         tvAnnouncementMessage = findViewById(R.id.tvAnnouncementMessage);
         tvReportAdditional = findViewById(R.id.tvReportAdditional);
         tvAnnouncementTime = findViewById(R.id.tvAnnouncementTime);
+        ivReportAuthorProfile = findViewById(R.id.ivReportAuthorProfile);
 
         layoutActivityLog = findViewById(R.id.layoutActivityLog);
         bottomNav = findViewById(R.id.bottomNav);
@@ -240,6 +246,9 @@ public class DashboardAdminActivity extends AppCompatActivity {
                 if (snapshot.exists()) {
                     for (DataSnapshot snap : snapshot.getChildren()) {
                         String uid = snap.child("uid").getValue(String.class);
+                        String storedProfileUrl = snap.child("profileImageUrl").getValue(String.class);
+                        final String reportProfileUrl = storedProfileUrl != null
+                                ? storedProfileUrl : snap.child("profile_pic").getValue(String.class);
 
                         String category = snap.child("type").getValue(String.class);
                         if (category == null) category = snap.child("category").getValue(String.class);
@@ -275,27 +284,35 @@ public class DashboardAdminActivity extends AppCompatActivity {
                         }
 
                         if (uid != null) {
-                            DatabaseReference userRef = FirebaseDatabase.getInstance().getReference().child("FisherTech").child("Users").child(uid).child("name");
+                            DatabaseReference userRef = FirebaseDatabase.getInstance().getReference()
+                                    .child("FisherTech").child("Users").child(uid);
                             userRef.addListenerForSingleValueEvent(new ValueEventListener() {
                                 @Override
                                 public void onDataChange(@NonNull DataSnapshot userSnap) {
-                                    String name = userSnap.exists() ? userSnap.getValue(String.class) : "Mangingisda";
+                                    String name = userSnap.child("name").getValue(String.class);
+                                    String profileImageUrl = reportProfileUrl != null
+                                            ? reportProfileUrl
+                                            : userSnap.child("profile_pic").getValue(String.class);
                                     if (tvReportUserName != null) {
-                                        tvReportUserName.setText(name);
+                                        tvReportUserName.setText(name != null ? name : "Mangingisda");
                                     }
+                                    loadReportAuthorProfile(profileImageUrl);
                                 }
 
                                 @Override
                                 public void onCancelled(@NonNull DatabaseError error) {
                                     if (tvReportUserName != null) tvReportUserName.setText("Mangingisda");
+                                    loadReportAuthorProfile(null);
                                 }
                             });
                         } else {
                             if (tvReportUserName != null) tvReportUserName.setText("Mangingisda");
+                            loadReportAuthorProfile(reportProfileUrl);
                         }
                     }
                 } else {
                     if (tvReportUserName != null) tvReportUserName.setText("Walang Ulat");
+                    loadReportAuthorProfile(null);
                     if (tvReportCategory != null) tvReportCategory.setText("");
                     if (tvAnnouncementMessage != null) tvAnnouncementMessage.setText("Wala pang nai-post na ulat.");
                     if (tvReportAdditional != null) tvReportAdditional.setVisibility(View.GONE);
@@ -306,6 +323,16 @@ public class DashboardAdminActivity extends AppCompatActivity {
             @Override
             public void onCancelled(@NonNull DatabaseError error) {}
         });
+    }
+
+    private void loadReportAuthorProfile(String profileImageUrl) {
+        if (ivReportAuthorProfile == null) return;
+        Glide.with(this)
+                .load(profileImageUrl)
+                .circleCrop()
+                .placeholder(R.drawable.ic_user_placeholder)
+                .error(R.drawable.ic_user_placeholder)
+                .into(ivReportAuthorProfile);
     }
 
     private void fetchLiveWeather() {
@@ -429,6 +456,7 @@ public class DashboardAdminActivity extends AppCompatActivity {
                     long count = snapshot.getChildrenCount();
                     tvReportCount.setText(String.valueOf(count));
                 }
+                fetchLatestAnnouncement();
                 updateActivityLog();
             }
             @Override public void onCancelled(@NonNull DatabaseError error) {}

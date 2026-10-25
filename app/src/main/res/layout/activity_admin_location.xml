@@ -82,26 +82,6 @@
                                 android:layout_width="match_parent"
                                 android:layout_height="match_parent" />
 
-                            <!-- ✅ Pormang Puting Badge Pantakip sa Google Logo -->
-                            <View
-                                android:layout_width="80dp"
-                                android:layout_height="20dp"
-                                android:layout_gravity="bottom|start"
-                                android:layout_marginStart="4dp"
-                                android:layout_marginBottom="32dp"
-                                android:background="#FFFFFF" />
-
-                            <!-- Label sa ibabaw ng badge -->
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_gravity="bottom|start"
-                                android:layout_marginStart="8dp"
-                                android:layout_marginBottom="35dp"
-                                android:text="📍 Bacoor Bay"
-                                android:textColor="#1E4D6B"
-                                android:textSize="10sp"
-                                android:textStyle="bold" />
 
                         </FrameLayout>
 

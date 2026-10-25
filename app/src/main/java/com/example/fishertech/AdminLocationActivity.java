@@ -63,6 +63,7 @@ public class AdminLocationActivity extends AppCompatActivity implements OnMapRea
     // ✅ Para sa Real-time Notification Badge Listener
     private DatabaseReference notifRef;
     private ValueEventListener badgeListener;
+    private BottomNavigationBadgeListener bottomNavigationBadgeListener;
 
     private List<SavedSpot> savedSpotList = new ArrayList<>();
     private AdminSavedSpotAdapter adminSavedSpotAdapter;
@@ -146,6 +147,7 @@ public class AdminLocationActivity extends AppCompatActivity implements OnMapRea
         loadSavedSpots();
         checkBuoyAlerts();
         setupNavigation();
+        bottomNavigationBadgeListener = new BottomNavigationBadgeListener(this, bottomNav);
     }
 
     // ✅ Simulan ang badge listener tuwing nakikita ang screen
@@ -153,6 +155,7 @@ public class AdminLocationActivity extends AppCompatActivity implements OnMapRea
     protected void onStart() {
         super.onStart();
         startBadgeListener();
+        bottomNavigationBadgeListener.start();
     }
 
     // ✅ Itigil ang listener kapag lumipat ng ibang screen para walang memory leak
@@ -160,6 +163,7 @@ public class AdminLocationActivity extends AppCompatActivity implements OnMapRea
     protected void onStop() {
         super.onStop();
         stopBadgeListener();
+        bottomNavigationBadgeListener.stop();
     }
 
     // ================== UNREAD BADGE SYSTEM ==================

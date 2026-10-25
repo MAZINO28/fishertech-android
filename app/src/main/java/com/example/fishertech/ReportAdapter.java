@@ -4,9 +4,11 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
+import com.bumptech.glide.Glide;
 import java.util.List;
 
 public class ReportAdapter extends RecyclerView.Adapter<ReportAdapter.ReportViewHolder> {
@@ -34,6 +36,12 @@ public class ReportAdapter extends RecyclerView.Adapter<ReportAdapter.ReportView
     public void onBindViewHolder(@NonNull ReportViewHolder holder, int position) {
         ReportActivity.ReportPost post = reportList.get(position);
         holder.tvUserName.setText(post.name);
+        Glide.with(holder.ivAuthorProfile)
+                .load(post.getProfileImageUrl())
+                .circleCrop()
+                .placeholder(R.drawable.ic_user_placeholder)
+                .error(R.drawable.ic_user_placeholder)
+                .into(holder.ivAuthorProfile);
         holder.tvCategory.setText(post.category);
         holder.tvDescription.setText(post.description);
         holder.tvTimestamp.setText(post.timestamp);
@@ -60,11 +68,13 @@ public class ReportAdapter extends RecyclerView.Adapter<ReportAdapter.ReportView
 
     public static class ReportViewHolder extends RecyclerView.ViewHolder {
         TextView tvUserName, tvCategory, tvDescription, tvAdditionalRemarks, tvTimestamp;
+        ImageView ivAuthorProfile;
         Button btnSaveFile;
 
         public ReportViewHolder(@NonNull View itemView) {
             super(itemView);
             tvUserName = itemView.findViewById(R.id.tvUserName);
+            ivAuthorProfile = itemView.findViewById(R.id.ivAuthorProfile);
             tvCategory = itemView.findViewById(R.id.tvCategory);
             tvDescription = itemView.findViewById(R.id.tvDescription);
             tvAdditionalRemarks = itemView.findViewById(R.id.tvAdditionalRemarks);

@@ -15,6 +15,7 @@ import androidx.appcompat.widget.Toolbar;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.bumptech.glide.Glide;
 import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
@@ -151,7 +152,8 @@ public class NotificationActivity extends AppCompatActivity {
      * ilang beses patakbuhin, iisang notification lang ang mabubuo (hindi na doble).
      */
     private void createIfAbsent(final String key, final String title, final String message,
-                                final String type, final String uid, final long createdAt) {
+                                final String type, final String uid, final long createdAt,
+                                final String senderProfileUrl) {
         final DatabaseReference ref = mDatabase.child(key);
         ref.addListenerForSingleValueEvent(new ValueEventListener() {
             @Override
@@ -164,6 +166,9 @@ public class NotificationActivity extends AppCompatActivity {
                     map.put("type", type);
                     map.put("target", "all");
                     if (uid != null) map.put("uid", uid);
+                    if (senderProfileUrl != null && !senderProfileUrl.trim().isEmpty()) {
+                        map.put("senderProfileUrl", senderProfileUrl);
+                    }
                     ref.setValue(map);
                 }
                 prefs.edit().putBoolean("notif_done_" + key, true).apply();
@@ -195,7 +200,7 @@ public class NotificationActivity extends AppCompatActivity {
                         String key = "buoy_move_" + buoyId + "_" + msg.hashCode();
                         if (claim(key)) {
                             createIfAbsent(key, "BABALA: Kakaibang Galaw ng Boya!", msg,
-                                    "buoy_movement", null, System.currentTimeMillis());
+                                    "buoy_movement", null, System.currentTimeMillis(), null);
                         }
                     }
 
@@ -204,7 +209,7 @@ public class NotificationActivity extends AppCompatActivity {
                         String key = "buoy_theft_" + buoyId + "_" + msg.hashCode();
                         if (claim(key)) {
                             createIfAbsent(key, "ALERTO: Posibleng Pagnanakaw ng Boya!", msg,
-                                    "buoy_theft", null, System.currentTimeMillis());
+                                    "buoy_theft", null, System.currentTimeMillis(), null);
                         }
                     }
                 }
@@ -246,24 +251,26 @@ public class NotificationActivity extends AppCompatActivity {
 
                     if (uid != null) {
                         DatabaseReference userRef = FirebaseDatabase.getInstance().getReference()
-                                .child("FisherTech").child("Users").child(uid).child("name");
+                                .child("FisherTech").child("Users").child(uid);
                         userRef.addListenerForSingleValueEvent(new ValueEventListener() {
                             @Override
                             public void onDataChange(@NonNull DataSnapshot userSnap) {
-                                String name = userSnap.exists() ? userSnap.getValue(String.class) : "Mangingisda";
+                                String name = userSnap.child("name").getValue(String.class);
+                                if (name == null) name = "Mangingisda";
+                                String profileUrl = userSnap.child("profile_pic").getValue(String.class);
                                 createIfAbsent(key, name + " - " + category, description,
-                                        "community_report", uid, createdAt);
+                                        "community_report", uid, createdAt, profileUrl);
                             }
 
                             @Override
                             public void onCancelled(@NonNull DatabaseError error) {
                                 createIfAbsent(key, "Bagong Ulat: " + category, description,
-                                        "community_report", uid, createdAt);
+                                        "community_report", uid, createdAt, null);
                             }
                         });
                     } else {
                         createIfAbsent(key, "Bagong Ulat: " + category, description,
-                                "community_report", null, createdAt);
+                                "community_report", null, createdAt, null);
                     }
                 }
             }
@@ -299,24 +306,26 @@ public class NotificationActivity extends AppCompatActivity {
 
                     if (uid != null) {
                         DatabaseReference userRef = FirebaseDatabase.getInstance().getReference()
-                                .child("FisherTech").child("Users").child(uid).child("name");
+                                .child("FisherTech").child("Users").child(uid);
                         userRef.addListenerForSingleValueEvent(new ValueEventListener() {
                             @Override
                             public void onDataChange(@NonNull DataSnapshot userSnap) {
-                                String name = userSnap.exists() ? userSnap.getValue(String.class) : "Mangingisda";
+                                String name = userSnap.child("name").getValue(String.class);
+                                if (name == null) name = "Mangingisda";
+                                String profileUrl = userSnap.child("profile_pic").getValue(String.class);
                                 createIfAbsent(key, name + " - Forum Chat", messageContent,
-                                        "forum_chat", uid, createdAt);
+                                        "forum_chat", uid, createdAt, profileUrl);
                             }
 
                             @Override
                             public void onCancelled(@NonNull DatabaseError error) {
                                 createIfAbsent(key, "Bagong Chat sa Forum", messageContent,
-                                        "forum_chat", uid, createdAt);
+                                        "forum_chat", uid, createdAt, null);
                             }
                         });
                     } else {
                         createIfAbsent(key, "Bagong Chat sa Forum", messageContent,
-                                "forum_chat", null, createdAt);
+                                "forum_chat", null, createdAt, null);
                     }
                 }
             }
@@ -333,18 +342,25 @@ public class NotificationActivity extends AppCompatActivity {
     }
 
     public static class NotifModel {
-        public String title, message, type, target, uid;
+        public String title, message, type, target, uid, senderProfileUrl, profileImage;
         public long created_at;
 
         public NotifModel() {}
 
-        public NotifModel(String title, String message, long created_at, String type, String target, String uid) {
+        public NotifModel(String title, String message, long created_at, String type, String target,
+                          String uid, String senderProfileUrl) {
             this.title = title;
             this.message = message;
             this.created_at = created_at;
             this.type = type;
             this.target = target;
             this.uid = uid;
+            this.senderProfileUrl = senderProfileUrl;
+        }
+
+        public String getSenderProfileUrl() {
+            return senderProfileUrl != null && !senderProfileUrl.trim().isEmpty()
+                    ? senderProfileUrl : profileImage;
         }
 
         public String getFormattedTime() {
@@ -380,7 +396,12 @@ public class NotificationActivity extends AppCompatActivity {
             h.tvTitle.setText(model.title);
             h.tvMsg.setText(model.message);
             h.tvTime.setText(model.getFormattedTime());
-            h.ivIcon.setImageResource(android.R.drawable.ic_dialog_info);
+            Glide.with(h.ivIcon)
+                    .load(model.getSenderProfileUrl())
+                    .circleCrop()
+                    .placeholder(R.drawable.ic_user_placeholder)
+                    .error(R.drawable.ic_user_placeholder)
+                    .into(h.ivIcon);
         }
 
         @Override

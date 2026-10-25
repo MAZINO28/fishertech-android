@@ -11,22 +11,28 @@
         android:layout_height="60dp"
         android:background="#FFFFFF"
         android:elevation="4dp"
+        android:paddingHorizontal="16dp"
         app:layout_constraintTop_toTopOf="parent">
-        <ImageButton
+
+        <ImageView
             android:id="@+id/btnBack"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
+            android:layout_width="30dp"
+            android:layout_height="30dp"
             android:layout_centerVertical="true"
-            android:layout_marginStart="16dp"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@android:drawable/ic_menu_revert" />
+            android:clickable="true"
+            android:focusable="true"
+            android:src="@drawable/ic_back"
+            app:tint="#1E4D6B" />
+
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_centerInParent="true"
-            android:text="Buoy Camera View"
-            android:textStyle="bold"
-            android:textSize="18sp" />
+            android:text="Larawan mula sa Boya"
+            android:textColor="#1E4D6B"
+            android:textSize="18sp"
+            android:textStyle="bold" />
     </RelativeLayout>
 
     <androidx.recyclerview.widget.RecyclerView
@@ -41,6 +47,7 @@
         android:layout_width="match_parent"
         android:layout_height="60dp"
         android:layout_margin="16dp"
+        android:backgroundTint="#1E4D6B"
         android:text="Refresh Images"
         app:layout_constraintBottom_toBottomOf="parent" />
 

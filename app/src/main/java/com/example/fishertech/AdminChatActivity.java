@@ -21,6 +21,7 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
+import com.bumptech.glide.Glide;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.firebase.auth.FirebaseAuth;
@@ -59,6 +60,8 @@ public class AdminChatActivity extends AppCompatActivity {
     // ✅ Para sa Real-time Notification Badge Listener
     private DatabaseReference notifRef;
     private ValueEventListener badgeListener;
+    private BottomNavigationBadgeListener bottomNavigationBadgeListener;
+    private ValueEventListener forumPostsListener;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -77,8 +80,6 @@ public class AdminChatActivity extends AppCompatActivity {
         chatAdapter = new AdminChatAdapter(forumList, this::deleteMessageFromFirebase);
         rvForumPosts.setAdapter(chatAdapter);
 
-        loadForumPosts();
-
         // ✅ Swipe-to-Refresh Listener
         if (swipeRefreshLayout != null) {
             swipeRefreshLayout.setOnRefreshListener(this::loadForumPosts);
@@ -93,6 +94,7 @@ public class AdminChatActivity extends AppCompatActivity {
         }
 
         setupNavigation();
+        bottomNavigationBadgeListener = new BottomNavigationBadgeListener(this, bottomNav);
     }
 
     // ✅ Simulan ang badge listener tuwing nakikita ang screen
@@ -100,6 +102,8 @@ public class AdminChatActivity extends AppCompatActivity {
     protected void onStart() {
         super.onStart();
         startBadgeListener();
+        bottomNavigationBadgeListener.start();
+        startForumPostsListener();
     }
 
     // ✅ Itigil ang listener kapag lumipat ng ibang screen para walang memory leak
@@ -107,6 +111,15 @@ public class AdminChatActivity extends AppCompatActivity {
     protected void onStop() {
         super.onStop();
         stopBadgeListener();
+        bottomNavigationBadgeListener.stop();
+        stopForumPostsListener();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        Notificationprefs.setLastSeenTalakayan(this, System.currentTimeMillis());
+        bottomNavigationBadgeListener.clearBadge(R.id.nav_chat);
     }
 
     // ================== UNREAD BADGE SYSTEM ==================
@@ -180,7 +193,25 @@ public class AdminChatActivity extends AppCompatActivity {
     }
 
     private void loadForumPosts() {
-        dbRef.child("forum_posts").addListenerForSingleValueEvent(new ValueEventListener() {
+        dbRef.child("forum_posts").addListenerForSingleValueEvent(createForumPostsListener());
+    }
+
+    private void startForumPostsListener() {
+        if (forumPostsListener == null) {
+            forumPostsListener = createForumPostsListener();
+            dbRef.child("forum_posts").addValueEventListener(forumPostsListener);
+        }
+    }
+
+    private void stopForumPostsListener() {
+        if (forumPostsListener != null) {
+            dbRef.child("forum_posts").removeEventListener(forumPostsListener);
+            forumPostsListener = null;
+        }
+    }
+
+    private ValueEventListener createForumPostsListener() {
+        return new ValueEventListener() {
             @Override
             public void onDataChange(@NonNull DataSnapshot snapshot) {
                 forumList.clear();
@@ -210,11 +241,13 @@ public class AdminChatActivity extends AppCompatActivity {
                 final int[] processedCount = {0};
 
                 for (ForumPostTemp temp : tempPostList) {
-                    dbRef.child("FisherTech").child("Users").child(temp.uid).child("name")
+                    dbRef.child("FisherTech").child("Users").child(temp.uid)
                             .addListenerForSingleValueEvent(new ValueEventListener() {
                                 @Override
                                 public void onDataChange(@NonNull DataSnapshot userSnap) {
-                                    String username = userSnap.exists() ? userSnap.getValue(String.class) : "Admin";
+                                    String username = userSnap.child("name").getValue(String.class);
+                                    if (username == null) username = "Admin";
+                                    String profileImageUrl = userSnap.child("profile_pic").getValue(String.class);
 
                                     String timeString = "Kamakailan lang";
                                     long currentTime = System.currentTimeMillis();
@@ -241,7 +274,8 @@ public class AdminChatActivity extends AppCompatActivity {
                                         timeString = fullFormat.format(new Date(temp.createdAt));
                                     }
 
-                                    forumList.add(new ForumPost(temp.postId, temp.uid, username, temp.content, timeString, temp.createdAt));
+                                    forumList.add(new ForumPost(temp.postId, temp.uid, username, temp.content,
+                                            timeString, temp.createdAt, profileImageUrl));
 
                                     processedCount[0]++;
                                     if (processedCount[0] == totalPosts) {
@@ -271,7 +305,7 @@ public class AdminChatActivity extends AppCompatActivity {
                 Toast.makeText(AdminChatActivity.this, "Failed to load posts.", Toast.LENGTH_SHORT).show();
                 if (swipeRefreshLayout != null) swipeRefreshLayout.setRefreshing(false);
             }
-        });
+        };
     }
 
     private void deleteMessageFromFirebase(String postId) {
@@ -328,11 +362,13 @@ public class AdminChatActivity extends AppCompatActivity {
 
     // ✅ Helper method para gumawa ng notification sa Firebase mula sa admin side
     private void createAdminForumNotification(String postId, String uid, String message, long createdAt) {
-        dbRef.child("FisherTech").child("Users").child(uid).child("name")
+        dbRef.child("FisherTech").child("Users").child(uid)
                 .addListenerForSingleValueEvent(new ValueEventListener() {
                     @Override
                     public void onDataChange(@NonNull DataSnapshot userSnap) {
-                        String name = userSnap.exists() ? userSnap.getValue(String.class) : "Admin";
+                        String name = userSnap.child("name").getValue(String.class);
+                        if (name == null) name = "Admin";
+                        String profileUrl = userSnap.child("profile_pic").getValue(String.class);
 
                         Map<String, Object> map = new HashMap<>();
                         map.put("title", name + " - Forum Chat");
@@ -341,6 +377,9 @@ public class AdminChatActivity extends AppCompatActivity {
                         map.put("type", "forum_chat");
                         map.put("target", "all");
                         map.put("uid", uid);
+                        if (profileUrl != null && !profileUrl.trim().isEmpty()) {
+                            map.put("senderProfileUrl", profileUrl);
+                        }
 
                         dbRef.child("FisherTech").child("notifications")
                                 .child("forum_" + postId).setValue(map);
@@ -391,16 +430,22 @@ public class AdminChatActivity extends AppCompatActivity {
     }
 
     public static class ForumPost {
-        private String postId, uid, name, message, timestamp;
+        private String postId, uid, name, message, timestamp, profileImageUrl;
         private long createdAt;
 
         public ForumPost(String postId, String uid, String name, String message, String timestamp, long createdAt) {
+            this(postId, uid, name, message, timestamp, createdAt, null);
+        }
+
+        public ForumPost(String postId, String uid, String name, String message, String timestamp, long createdAt,
+                         String profileImageUrl) {
             this.postId = postId;
             this.uid = uid;
             this.name = name;
             this.message = message;
             this.timestamp = timestamp;
             this.createdAt = createdAt;
+            this.profileImageUrl = profileImageUrl;
         }
 
         public String getPostId() { return postId; }
@@ -409,6 +454,7 @@ public class AdminChatActivity extends AppCompatActivity {
         public String getMessage() { return message; }
         public String getTimestamp() { return timestamp; }
         public long getCreatedAt() { return createdAt; }
+        public String getProfileImageUrl() { return profileImageUrl; }
     }
 
     private static class AdminChatAdapter extends RecyclerView.Adapter<AdminChatAdapter.ChatViewHolder> {
@@ -437,6 +483,12 @@ public class AdminChatActivity extends AppCompatActivity {
             ForumPost post = posts.get(position);
 
             holder.tvUserName.setText(post.getName());
+            Glide.with(holder.ivAuthorProfile)
+                    .load(post.getProfileImageUrl())
+                    .circleCrop()
+                    .placeholder(R.drawable.ic_user_placeholder)
+                    .error(R.drawable.ic_user_placeholder)
+                    .into(holder.ivAuthorProfile);
             holder.tvPostContent.setText(post.getMessage());
             holder.tvTimestamp.setText(post.getTimestamp());
 
@@ -454,11 +506,13 @@ public class AdminChatActivity extends AppCompatActivity {
 
         static class ChatViewHolder extends RecyclerView.ViewHolder {
             TextView tvUserName, tvPostContent, tvTimestamp;
+            ImageView ivAuthorProfile;
             Button btnDeleteMessage;
 
             ChatViewHolder(View v) {
                 super(v);
                 tvUserName = v.findViewById(R.id.tvUserName);
+                ivAuthorProfile = v.findViewById(R.id.ivAuthorProfile);
                 tvPostContent = v.findViewById(R.id.tvMessage);
                 tvTimestamp = v.findViewById(R.id.tvTimestamp);
                 btnDeleteMessage = v.findViewById(R.id.btnDeleteMessage);

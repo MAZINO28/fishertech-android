@@ -23,6 +23,7 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
+import com.bumptech.glide.Glide;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.firebase.auth.FirebaseAuth;
@@ -61,6 +62,7 @@ public class ChatActivity extends AppCompatActivity {
     // ✅ Para sa Real-time Notification Badge Listener
     private DatabaseReference notifRef;
     private ValueEventListener badgeListener;
+    private BottomNavigationBadgeListener bottomNavigationBadgeListener;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -97,6 +99,7 @@ public class ChatActivity extends AppCompatActivity {
         }
 
         setupNavigation();
+        bottomNavigationBadgeListener = new BottomNavigationBadgeListener(this, bottomNav);
     }
 
     // ✅ Simulan ang badge listener tuwing nakikita ang screen
@@ -104,6 +107,7 @@ public class ChatActivity extends AppCompatActivity {
     protected void onStart() {
         super.onStart();
         startBadgeListener();
+        bottomNavigationBadgeListener.start();
     }
 
     // ✅ Itigil ang listener kapag lumipat ng ibang screen para walang memory leak o stacking
@@ -111,6 +115,14 @@ public class ChatActivity extends AppCompatActivity {
     protected void onStop() {
         super.onStop();
         stopBadgeListener();
+        bottomNavigationBadgeListener.stop();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        Notificationprefs.setLastSeenTalakayan(this, System.currentTimeMillis());
+        bottomNavigationBadgeListener.clearBadge(R.id.nav_chat);
     }
 
     // ================== UNREAD BADGE SYSTEM ==================
@@ -213,14 +225,17 @@ public class ChatActivity extends AppCompatActivity {
                 final int totalPosts = tempPostList.size();
 
                 for (ForumPostTemp temp : tempPostList) {
-                    dbRef.child("FisherTech").child("Users").child(temp.uid).child("name")
+                    dbRef.child("FisherTech").child("Users").child(temp.uid)
                             .addListenerForSingleValueEvent(new ValueEventListener() {
                                 @Override
                                 public void onDataChange(@NonNull DataSnapshot userSnap) {
-                                    String username = userSnap.exists() ? userSnap.getValue(String.class) : "User";
+                                    String username = userSnap.child("name").getValue(String.class);
+                                    if (username == null) username = "User";
+                                    String profileImageUrl = userSnap.child("profile_pic").getValue(String.class);
                                     String timeString = formatTimestamp(temp.createdAt);
 
-                                    loadedPosts.add(new ForumPost(temp.uid, username, temp.content, timeString, temp.createdAt));
+                                    loadedPosts.add(new ForumPost(temp.uid, username, temp.content, timeString,
+                                            temp.createdAt, profileImageUrl));
 
                                     if (loadedPosts.size() == totalPosts) {
                                         Collections.sort(loadedPosts, (p1, p2) -> Long.compare(p1.getCreatedAt(), p2.getCreatedAt()));
@@ -241,7 +256,8 @@ public class ChatActivity extends AppCompatActivity {
 
                                 @Override
                                 public void onCancelled(@NonNull DatabaseError error) {
-                                    loadedPosts.add(new ForumPost(temp.uid, "User", temp.content, "Kamakailan lang", temp.createdAt));
+                                    loadedPosts.add(new ForumPost(temp.uid, "User", temp.content,
+                                            "Kamakailan lang", temp.createdAt, null));
                                     if (loadedPosts.size() == totalPosts) {
                                         Collections.sort(loadedPosts, (p1, p2) -> Long.compare(p1.getCreatedAt(), p2.getCreatedAt()));
                                         forumList.clear();
@@ -336,11 +352,13 @@ public class ChatActivity extends AppCompatActivity {
     }
 
     private void createForumNotification(String postId, String uid, String message, long createdAt) {
-        dbRef.child("FisherTech").child("Users").child(uid).child("name")
+        dbRef.child("FisherTech").child("Users").child(uid)
                 .addListenerForSingleValueEvent(new ValueEventListener() {
                     @Override
                     public void onDataChange(@NonNull DataSnapshot userSnap) {
-                        String name = userSnap.exists() ? userSnap.getValue(String.class) : "Mangingisda";
+                        String name = userSnap.child("name").getValue(String.class);
+                        if (name == null) name = "Mangingisda";
+                        String profileUrl = userSnap.child("profile_pic").getValue(String.class);
 
                         Map<String, Object> map = new HashMap<>();
                         map.put("title", name + " - Forum Chat");
@@ -349,6 +367,9 @@ public class ChatActivity extends AppCompatActivity {
                         map.put("type", "forum_chat");
                         map.put("target", "all");
                         map.put("uid", uid);
+                        if (profileUrl != null && !profileUrl.trim().isEmpty()) {
+                            map.put("senderProfileUrl", profileUrl);
+                        }
 
                         dbRef.child("FisherTech").child("notifications")
                                 .child("forum_" + postId).setValue(map);
@@ -436,6 +457,17 @@ public class ChatActivity extends AppCompatActivity {
                 holder.tvTimestamp.setTextColor(Color.parseColor("#777777"));
             }
 
+            if (isMe) {
+                holder.ivAuthorProfile.setVisibility(View.GONE);
+            } else {
+                holder.ivAuthorProfile.setVisibility(View.VISIBLE);
+                Glide.with(holder.ivAuthorProfile)
+                        .load(post.getProfileImageUrl())
+                        .circleCrop()
+                        .placeholder(R.drawable.ic_user_placeholder)
+                        .error(R.drawable.ic_user_placeholder)
+                        .into(holder.ivAuthorProfile);
+            }
             holder.tvPostContent.setText(post.getMessage());
             holder.tvTimestamp.setText(post.getTimestamp());
         }
@@ -447,11 +479,13 @@ public class ChatActivity extends AppCompatActivity {
 
         class ChatViewHolder extends RecyclerView.ViewHolder {
             TextView tvUserName, tvPostContent, tvTimestamp;
+            ImageView ivAuthorProfile;
             LinearLayout bubbleWrapper, chatBubble;
 
             ChatViewHolder(View v) {
                 super(v);
                 tvUserName = v.findViewById(R.id.tvUserName);
+                ivAuthorProfile = v.findViewById(R.id.ivAuthorProfile);
                 tvPostContent = v.findViewById(R.id.tvPostContent);
                 tvTimestamp = v.findViewById(R.id.tvTimestamp);
                 bubbleWrapper = v.findViewById(R.id.bubbleWrapper);

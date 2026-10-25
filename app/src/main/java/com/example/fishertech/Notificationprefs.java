@@ -14,6 +14,8 @@ public final class Notificationprefs {
 
     private static final String PREFS_NAME = "FisherTechPrefs";
     private static final String KEY_PREFIX = "last_seen_notification_";
+    private static final String TALAKAYAN_KEY_PREFIX = "last_seen_talakayan_";
+    private static final String ULAT_KEY_PREFIX = "last_seen_ulat_";
 
     private Notificationprefs() {}
 
@@ -46,5 +48,45 @@ public final class Notificationprefs {
         if (latestCreatedAt > current) {
             prefs.edit().putLong(key(), latestCreatedAt).apply();
         }
+    }
+
+    public static long getLastSeenTalakayan(Context context) {
+        return getLastSeen(context, TALAKAYAN_KEY_PREFIX);
+    }
+
+    public static void setLastSeenTalakayan(Context context, long lastSeen) {
+        setLastSeen(context, TALAKAYAN_KEY_PREFIX, lastSeen);
+    }
+
+    public static long getLastSeenUlat(Context context) {
+        return getLastSeen(context, ULAT_KEY_PREFIX);
+    }
+
+    public static void setLastSeenUlat(Context context, long lastSeen) {
+        setLastSeen(context, ULAT_KEY_PREFIX, lastSeen);
+    }
+
+    private static long getLastSeen(Context context, String keyPrefix) {
+        SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        String preferenceKey = keyPrefix + currentUserId();
+        if (!prefs.contains(preferenceKey)) {
+            long now = System.currentTimeMillis();
+            prefs.edit().putLong(preferenceKey, now).apply();
+            return now;
+        }
+        return prefs.getLong(preferenceKey, 0L);
+    }
+
+    private static void setLastSeen(Context context, String keyPrefix, long lastSeen) {
+        if (lastSeen <= 0) return;
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .putLong(keyPrefix + currentUserId(), lastSeen)
+                .apply();
+    }
+
+    private static String currentUserId() {
+        FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
+        return user != null ? user.getUid() : "guest";
     }
 }

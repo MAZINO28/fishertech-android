@@ -62,6 +62,7 @@ public class ReportActivity extends AppCompatActivity {
     // ✅ Para sa Real-time Notification Badge Listener
     private DatabaseReference notifRef;
     private ValueEventListener badgeListener;
+    private BottomNavigationBadgeListener bottomNavigationBadgeListener;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -102,6 +103,7 @@ public class ReportActivity extends AppCompatActivity {
         loadReportsFromFirebase();
         btnSubmitReport.setOnClickListener(v -> submitReportToFirebase());
         setupNavigation();
+        bottomNavigationBadgeListener = new BottomNavigationBadgeListener(this, bottomNav);
     }
 
     // ✅ Simulan ang badge listener tuwing nakikita ang screen
@@ -109,6 +111,7 @@ public class ReportActivity extends AppCompatActivity {
     protected void onStart() {
         super.onStart();
         startBadgeListener();
+        bottomNavigationBadgeListener.start();
     }
 
     // ✅ Itigil ang listener kapag lumipat ng ibang screen para walang memory leak
@@ -116,6 +119,14 @@ public class ReportActivity extends AppCompatActivity {
     protected void onStop() {
         super.onStop();
         stopBadgeListener();
+        bottomNavigationBadgeListener.stop();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        Notificationprefs.setLastSeenUlat(this, System.currentTimeMillis());
+        bottomNavigationBadgeListener.clearBadge(R.id.nav_report);
     }
 
     // ================== UNREAD BADGE SYSTEM ==================
@@ -277,11 +288,13 @@ public class ReportActivity extends AppCompatActivity {
                     final String finalTime = timeString;
 
                     if (uid != null) {
-                        dbRef.child("FisherTech").child("Users").child(uid).child("name").addListenerForSingleValueEvent(new ValueEventListener() {
+                        dbRef.child("FisherTech").child("Users").child(uid).addListenerForSingleValueEvent(new ValueEventListener() {
                             @Override
                             public void onDataChange(@NonNull DataSnapshot userSnapshot) {
-                                String name = userSnapshot.exists() ? userSnapshot.getValue(String.class) : "Mangingisda";
-                                postList.add(0, new ReportPost(name, category, desc, remarks, finalTime));
+                                String name = userSnapshot.child("name").getValue(String.class);
+                                if (name == null) name = "Mangingisda";
+                                String profileImageUrl = userSnapshot.child("profile_pic").getValue(String.class);
+                                postList.add(0, new ReportPost(name, category, desc, remarks, finalTime, profileImageUrl));
 
                                 processedCount[0]++;
                                 if (processedCount[0] == totalChildren) {
@@ -365,11 +378,13 @@ public class ReportActivity extends AppCompatActivity {
 
     private void createReportNotification(String reportId, String uid, String category,
                                           String description, long createdAt) {
-        dbRef.child("FisherTech").child("Users").child(uid).child("name")
+        dbRef.child("FisherTech").child("Users").child(uid)
                 .addListenerForSingleValueEvent(new ValueEventListener() {
                     @Override
                     public void onDataChange(@NonNull DataSnapshot userSnap) {
-                        String name = userSnap.exists() ? userSnap.getValue(String.class) : "Mangingisda";
+                        String name = userSnap.child("name").getValue(String.class);
+                        if (name == null) name = "Mangingisda";
+                        String profileUrl = userSnap.child("profile_pic").getValue(String.class);
 
                         Map<String, Object> map = new HashMap<>();
                         map.put("title", name + " - " + category);
@@ -378,6 +393,9 @@ public class ReportActivity extends AppCompatActivity {
                         map.put("type", "community_report");
                         map.put("target", "all");
                         map.put("uid", uid);
+                        if (profileUrl != null && !profileUrl.trim().isEmpty()) {
+                            map.put("senderProfileUrl", profileUrl);
+                        }
 
                         dbRef.child("FisherTech").child("notifications")
                                 .child("report_" + reportId).setValue(map);
@@ -420,13 +438,21 @@ public class ReportActivity extends AppCompatActivity {
     }
 
     public static class ReportPost {
-        public String name, category, description, additionalRemarks, timestamp;
+        public String name, category, description, additionalRemarks, timestamp, profileImageUrl;
         public ReportPost(String name, String category, String description, String additionalRemarks, String timestamp) {
+            this(name, category, description, additionalRemarks, timestamp, null);
+        }
+
+        public ReportPost(String name, String category, String description, String additionalRemarks, String timestamp,
+                          String profileImageUrl) {
             this.name = name;
             this.category = category;
             this.description = description;
             this.additionalRemarks = additionalRemarks;
             this.timestamp = timestamp;
+            this.profileImageUrl = profileImageUrl;
         }
+
+        public String getProfileImageUrl() { return profileImageUrl; }
     }
 }

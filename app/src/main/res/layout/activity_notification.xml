@@ -20,7 +20,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Notifications"
+            android:text="Abiso"
             android:textSize="18sp"
             android:textStyle="bold"
             android:textColor="#1E4D6B"

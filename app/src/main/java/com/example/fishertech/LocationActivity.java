@@ -62,6 +62,7 @@ public class LocationActivity extends AppCompatActivity implements OnMapReadyCal
     // ✅ Para sa Real-time Notification Badge Listener
     private DatabaseReference notifRef;
     private ValueEventListener badgeListener;
+    private BottomNavigationBadgeListener bottomNavigationBadgeListener;
 
     private List<SavedSpot> savedSpotList = new ArrayList<>();
     private SavedSpotAdapter savedSpotAdapter;
@@ -135,6 +136,7 @@ public class LocationActivity extends AppCompatActivity implements OnMapReadyCal
         loadSavedSpots();
         checkBuoyAlerts();
         setupNavigation();
+        bottomNavigationBadgeListener = new BottomNavigationBadgeListener(this, bottomNav);
     }
 
     // ✅ Simulan ang badge listener tuwing nakikita ang screen
@@ -142,6 +144,7 @@ public class LocationActivity extends AppCompatActivity implements OnMapReadyCal
     protected void onStart() {
         super.onStart();
         startBadgeListener();
+        bottomNavigationBadgeListener.start();
     }
 
     // ✅ Itigil ang listener kapag lumipat ng ibang screen para walang memory leak
@@ -149,6 +152,7 @@ public class LocationActivity extends AppCompatActivity implements OnMapReadyCal
     protected void onStop() {
         super.onStop();
         stopBadgeListener();
+        bottomNavigationBadgeListener.stop();
     }
 
     // ================== UNREAD BADGE SYSTEM ==================
