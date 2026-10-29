@@ -1,6 +1,7 @@
 package com.example.fishertech;
 
 import android.content.Intent;
+import android.graphics.Color;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -9,6 +10,7 @@ import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -23,6 +25,7 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 import com.bumptech.glide.Glide;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
@@ -320,12 +323,23 @@ public class AdminChatActivity extends AppCompatActivity {
     }
 
     private void showPostDialog() {
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        MaterialAlertDialogBuilder builder = new MaterialAlertDialogBuilder(this);
         builder.setTitle("Bagong Post sa Forum");
 
         final EditText input = new EditText(this);
         input.setHint("Ano ang balita sa dagat?");
-        builder.setView(input);
+
+        LinearLayout container = new LinearLayout(this);
+        container.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        params.setMargins(50, 20, 50, 20);
+        input.setLayoutParams(params);
+        container.addView(input);
+
+        builder.setView(container);
 
         builder.setPositiveButton("I-Post", (dialog, which) -> {
             String message = input.getText().toString().trim();
@@ -344,9 +358,7 @@ public class AdminChatActivity extends AppCompatActivity {
                     if (postId != null) {
                         dbRef.child("forum_posts").child(postId).setValue(postValues)
                                 .addOnSuccessListener(aVoid -> {
-                                    // ✅ Gumawe ng notification para makita ng iba at mag-update ang badge
                                     createAdminForumNotification(postId, user.getUid(), message, now);
-
                                     Toast.makeText(AdminChatActivity.this, "Nai-post na!", Toast.LENGTH_SHORT).show();
                                     loadForumPosts();
                                 })
@@ -357,7 +369,16 @@ public class AdminChatActivity extends AppCompatActivity {
         });
 
         builder.setNegativeButton("I-Cancel", (dialog, which) -> dialog.cancel());
-        builder.show();
+
+        AlertDialog dialog = builder.create();
+        dialog.show();
+
+        if (dialog.getButton(AlertDialog.BUTTON_POSITIVE) != null) {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(Color.parseColor("#1E4D6B"));
+        }
+        if (dialog.getButton(AlertDialog.BUTTON_NEGATIVE) != null) {
+            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(Color.parseColor("#1E4D6B"));
+        }
     }
 
     // ✅ Helper method para gumawa ng notification sa Firebase mula sa admin side

@@ -312,12 +312,30 @@ public class ChatActivity extends AppCompatActivity {
     }
 
     private void showPostDialog() {
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        // Gumamit ng MaterialAlertDialogBuilder para sa modern Material Design style
+        com.google.android.material.dialog.MaterialAlertDialogBuilder builder =
+                new com.google.android.material.dialog.MaterialAlertDialogBuilder(this);
+
         builder.setTitle("Bagong Post sa Forum");
 
+        // Gumawa ng layout container para mailagay nang maayos ang padding ng EditText
         final EditText input = new EditText(this);
         input.setHint("Ano ang balita sa dagat?");
-        builder.setView(input);
+        input.setFocusable(true);
+        input.setFocusableInTouchMode(true);
+
+        // Maglagay ng margins/padding sa EditText para hindi dumikit sa gilid ng box
+        LinearLayout container = new LinearLayout(this);
+        container.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        params.setMargins(50, 20, 50, 20); // Left, Top, Right, Bottom margins
+        input.setLayoutParams(params);
+        container.addView(input);
+
+        builder.setView(container);
 
         builder.setPositiveButton("I-Post", (dialog, which) -> {
             String message = input.getText().toString().trim();
@@ -348,9 +366,18 @@ public class ChatActivity extends AppCompatActivity {
         });
 
         builder.setNegativeButton("I-Cancel", (dialog, which) -> dialog.cancel());
-        builder.show();
-    }
 
+        AlertDialog dialog = builder.create();
+        dialog.show();
+
+        // I-set ang kulay ng mga button para sumunod sa theme ng app mo (#1E4D6B)
+        if (dialog.getButton(AlertDialog.BUTTON_POSITIVE) != null) {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(Color.parseColor("#1E4D6B"));
+        }
+        if (dialog.getButton(AlertDialog.BUTTON_NEGATIVE) != null) {
+            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(Color.parseColor("#1E4D6B"));
+        }
+    }
     private void createForumNotification(String postId, String uid, String message, long createdAt) {
         dbRef.child("FisherTech").child("Users").child(uid)
                 .addListenerForSingleValueEvent(new ValueEventListener() {
